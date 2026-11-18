@@ -2,10 +2,16 @@
 
 # dependencies
 node_modules/
+test-results/
+playwright-report/
+.env
+.env.local
+.env.*.local
 
 # Expo
 .expo/
 dist/
+dist-all/
 web-build/
 expo-env.d.ts
 

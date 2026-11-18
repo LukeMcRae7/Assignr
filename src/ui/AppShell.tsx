@@ -1,0 +1,287 @@
+import {
+  ActivityIndicator,
+  Pressable,
+  View,
+  useWindowDimensions,
+} from "react-native";
+import { Link, Slot, usePathname } from "expo-router";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import { useWorkspace } from "../providers/WorkspaceProvider";
+import { useAuth } from "../providers/AuthProvider";
+import { Button, EmptyState, Icon, Sheet, Text } from "./primitives";
+import { useTheme } from "./theme";
+
+const items = [
+  { href: "/", name: "ToDo", icon: "clipboard-list-outline" },
+  { href: "/calendar", name: "Calendar", icon: "calendar-blank-outline" },
+  { href: "/courses", name: "Courses", icon: "school-outline" },
+  { href: "/today", name: "Today", icon: "clock-outline" },
+  { href: "/settings", name: "Settings", icon: "cog-outline" },
+] as const;
+export function AppShell() {
+  const t = useTheme();
+  const pathname = usePathname();
+  const { width } = useWindowDimensions();
+  const wide = width >= 900;
+  const insets = useSafeAreaInsets();
+  const w = useWorkspace();
+  const { session } = useAuth();
+  return (
+    <View
+      style={{
+        flex: 1,
+        flexDirection: wide ? "row-reverse" : "column",
+        backgroundColor: t.background,
+      }}
+    >
+      <View style={{ flex: 1 }}>
+        <StatusBanner />
+        <Slot />
+      </View>
+      <SafeAreaView
+        edges={wide ? ["top", "left", "bottom"] : ["left", "right"]}
+        style={{
+          width: wide ? 224 : "100%",
+          backgroundColor: wide ? t.subtle : t.background,
+          borderRightWidth: wide ? 1 : 0,
+          borderTopWidth: wide ? 0 : 1,
+          borderColor: t.border,
+          paddingHorizontal: wide ? 16 : 5,
+          paddingTop: wide ? 32 : 8,
+          paddingBottom: wide ? 22 : Math.max(insets.bottom, 10),
+          gap: wide ? 32 : 0,
+        }}
+      >
+        {wide ? (
+          <View
+            style={{
+              paddingLeft: 12,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 11,
+            }}
+          >
+            <View
+              style={{
+                width: 31,
+                height: 33,
+                borderRadius: 9,
+                backgroundColor: t.accent,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Icon name="check" color="#FFF" size={23} />
+            </View>
+            <Text
+              style={{ fontWeight: "700", fontSize: 24, letterSpacing: -0.7 }}
+            >
+              Assignr
+            </Text>
+          </View>
+        ) : null}
+        <View
+          accessibilityLabel="Main navigation"
+          style={{ flexDirection: wide ? "column" : "row", gap: wide ? 7 : 0 }}
+        >
+          {items.map((item) => {
+            const selected =
+              item.href === "/"
+                ? pathname === "/"
+                : pathname.startsWith(item.href);
+            return (
+              <Link key={item.href} href={item.href} replace asChild>
+                <Pressable
+                  accessibilityRole="link"
+                  accessibilityLabel={item.name}
+                  accessibilityState={{ selected }}
+                  aria-current={selected ? "page" : undefined}
+                  style={{
+                    flex: wide ? undefined : 1,
+                    flexDirection: wide ? "row" : "column",
+                    alignItems: "center",
+                    justifyContent: wide ? "flex-start" : "center",
+                    gap: wide ? 13 : 3,
+                    minHeight: wide ? 48 : 49,
+                    paddingHorizontal: wide ? 14 : 0,
+                    borderRadius: 10,
+                    backgroundColor:
+                      wide && selected ? t.elevated : "transparent",
+                  }}
+                >
+                  <Icon
+                    name={item.icon}
+                    size={wide ? 22 : 25}
+                    color={selected ? t.accent : t.muted}
+                  />
+                  <Text
+                    style={{
+                      fontSize: wide ? 14 : 10,
+                      fontWeight: selected ? "600" : "400",
+                      color: selected ? t.accent : t.muted,
+                      lineHeight: wide ? 23 : 16,
+                    }}
+                  >
+                    {item.name}
+                  </Text>
+                </Pressable>
+              </Link>
+            );
+          })}
+        </View>
+        {wide ? (
+          <View
+            style={{
+              flex: 1,
+              justifyContent: "flex-end",
+              gap: 9,
+              paddingHorizontal: 12,
+            }}
+          >
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 9 }}
+            >
+              <Icon
+                name={session ? "cloud-check-outline" : "check-circle-outline"}
+                size={17}
+              />
+              <Text muted style={{ fontSize: 12 }}>
+                {session
+                  ? w.status === "synced"
+                    ? "All changes synced"
+                    : "Your student space"
+                  : "Saved on this device"}
+              </Text>
+            </View>
+            <Text muted style={{ fontSize: 11 }}>
+              A little structure. A clearer day.
+            </Text>
+          </View>
+        ) : null}
+      </SafeAreaView>
+    </View>
+  );
+}
+export function StatusBanner() {
+  const w = useWorkspace();
+  const t = useTheme();
+  if (!w.error && w.status !== "offline" && !w.notice) return null;
+  return (
+    <View
+      accessibilityRole="alert"
+      style={{
+        backgroundColor: t.elevated,
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        gap: 8,
+        flexDirection: "row",
+        alignItems: "center",
+      }}
+    >
+      <Icon
+        name={
+          w.notice || w.error ? "alert-circle-outline" : "cloud-off-outline"
+        }
+        size={18}
+      />
+      <Text style={{ flex: 1, fontSize: 12, lineHeight: 18 }}>
+        {w.notice ||
+          (w.status === "offline"
+            ? "You’re offline. Changes are saved here and will sync when you reconnect."
+            : "Could not sync. Your changes are saved on this device.")}
+      </Text>
+      {w.error ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            void w.store.sync();
+          }}
+          style={{ padding: 8 }}
+        >
+          <Text style={{ color: t.accent, fontSize: 12 }}>Retry</Text>
+        </Pressable>
+      ) : w.notice ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Dismiss message"
+          onPress={() => w.setNotice(null)}
+        >
+          <Icon name="close" size={18} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+export function WorkspaceGuard({ children }: { children: React.ReactNode }) {
+  const w = useWorkspace();
+  const t = useTheme();
+  if (!w.ready)
+    return (
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: t.background,
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        {w.error ? (
+          <EmptyState
+            title="Could not open your workspace"
+            description={w.error}
+            action={
+              <Button
+                onPress={() => {
+                  void w.store.initialize();
+                }}
+              >
+                Try again
+              </Button>
+            }
+          />
+        ) : (
+          <ActivityIndicator color={t.accent} />
+        )}
+      </View>
+    );
+  return (
+    <>
+      {children}
+      {w.conflict ? (
+        <Sheet visible title="Changed on another device" onClose={() => {}}>
+          <Text>
+            This item has another saved version. Your edits are safe on this
+            device.
+          </Text>
+          <Text muted style={{ fontSize: 13 }}>
+            Choose which version to keep for “
+            {"title" in w.conflict.mutation.record
+              ? w.conflict.mutation.record.title
+              : "name" in w.conflict.mutation.record
+                ? w.conflict.mutation.record.name
+                : "Settings"}
+            ”.
+          </Text>
+          <Button
+            onPress={() => {
+              void w.perform(() => w.store.resolveConflict("mine"));
+            }}
+          >
+            Keep my edits
+          </Button>
+          <Button
+            variant="secondary"
+            onPress={() => {
+              void w.perform(() => w.store.resolveConflict("remote"));
+            }}
+          >
+            Use the synced version
+          </Button>
+        </Sheet>
+      ) : null}
+    </>
+  );
+}
