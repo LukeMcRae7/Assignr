@@ -22,6 +22,7 @@ function course(user_id = "alice"): Course {
     version: 0,
     deleted_at: null,
     name: "Data Structures",
+    semester_id: null,
     code: "CMPT 225",
     professor: "",
     website: "",
@@ -31,7 +32,12 @@ function course(user_id = "alice"): Course {
   };
 }
 class FakeRemote implements Remote {
-  snapshot: Snapshot = { courses: [], events: [], preferences: [] };
+  snapshot: Snapshot = {
+    semesters: [],
+    courses: [],
+    events: [],
+    preferences: [],
+  };
   receipts = new Map<string, Entity>();
   fail = false;
   loseAck = false;
@@ -71,6 +77,65 @@ async function settled(store: StudyStore) {
   }
   throw new Error("Sync did not settle");
 }
+test("v1 cache migration preserves unsynced records and mutation identities", async () => {
+  const disk = new MemoryStorage();
+  const c = course();
+  const queued = {
+    id: randomUUID(),
+    table: "courses",
+    record: c,
+    expected_version: 0,
+  };
+  disk.values.set(
+    "assignr:v1:alice",
+    JSON.stringify({
+      schema: 1,
+      snapshot: { courses: [c], events: [], preferences: [] },
+      queue: [queued],
+    }),
+  );
+  const store = new StudyStore("alice", disk, randomUUID, new FakeRemote());
+  store.setOnline(false);
+  await store.initialize();
+  assert.equal(store.getState().schema, 2);
+  assert.deepEqual(store.getState().snapshot.semesters, []);
+  assert.deepEqual(store.getState().queue, [queued]);
+  assert.equal(store.getState().snapshot.courses[0].id, c.id);
+  assert.equal(JSON.parse(disk.values.get("assignr:v1:alice")!).schema, 2);
+});
+
+test("offline semester and course creation replay in dependency order after restart", async () => {
+  const disk = new MemoryStorage();
+  const remote = new FakeRemote();
+  const store = new StudyStore("alice", disk, randomUUID, remote);
+  store.setOnline(false);
+  await store.initialize();
+  const semester = {
+    ...course(),
+    name: "Fall 2026",
+    start_date: "2026-09-01",
+    end_date: "2026-12-01",
+    timezone: "America/Vancouver",
+  };
+  const c = { ...course(), semester_id: semester.id };
+  await store.commit([
+    { table: "semesters", record: semester },
+    { table: "courses", record: c },
+  ]);
+  assert.deepEqual(
+    store.getState().queue.map((m) => m.table),
+    ["semesters", "courses"],
+  );
+  store.dispose();
+  const resumed = new StudyStore("alice", disk, randomUUID, remote);
+  await resumed.initialize();
+  await settled(resumed);
+  assert.equal(resumed.getState().queue.length, 0);
+  assert.equal(
+    remote.snapshot.courses[0].semester_id,
+    remote.snapshot.semesters[0].id,
+  );
+});
 test("local writes survive restart and stay scoped to their account", async () => {
   const disk = new MemoryStorage();
   const a = new StudyStore("alice", disk, randomUUID);

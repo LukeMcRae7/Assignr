@@ -12,6 +12,7 @@ playwright-report/
 .expo/
 dist/
 dist-all/
+dist-ios-check/
 web-build/
 expo-env.d.ts
 

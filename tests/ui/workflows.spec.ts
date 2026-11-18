@@ -7,6 +7,12 @@ test("course, classes, assignment, and in-class exam stay consistent", async ({
   page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/");
   await page.getByRole("button", { name: "Create your first course" }).click();
+  await page
+    .getByLabel("Semester name", { exact: true })
+    .fill("Current semester");
+  await page
+    .getByRole("button", { name: "Create semester", exact: true })
+    .click();
   await page.getByLabel("Course name", { exact: true }).fill("Data Structures");
   await page.getByLabel("Course code", { exact: true }).fill("CMPT 225");
   await page.getByLabel("Professor", { exact: true }).fill("Igor Shinkar");
@@ -112,15 +118,23 @@ test("standalone plans work without a course and fit the viewport", async ({
   expect(overflow).toBe(false);
 });
 
-test('invalid subtask targets stay editable and cannot be saved', async ({ page }) => {
-  await page.goto('/event/new');
-  await page.getByLabel('Title', { exact: true }).fill('Independent reading');
-  await page.getByRole('button', { name: 'Add subtask', exact: true }).click();
-  await page.getByLabel('Subtask 1', { exact: true }).fill('Read chapter one');
-  await page.getByLabel('Target completion', { exact: true }).fill('tomorrow');
-  await page.getByRole('button', { name: 'Create event', exact: true }).click();
-  await expect(page.getByText('Enter subtask targets as YYYY-MM-DD HH:MM, or leave them empty.')).toBeVisible();
-  await page.getByLabel('Target completion', { exact: true }).fill('');
-  await page.getByRole('button', { name: 'Create event', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Open Independent reading', exact: true })).toBeVisible();
+test("invalid subtask targets stay editable and cannot be saved", async ({
+  page,
+}) => {
+  await page.goto("/event/new");
+  await page.getByLabel("Title", { exact: true }).fill("Independent reading");
+  await page.getByRole("button", { name: "Add subtask", exact: true }).click();
+  await page.getByLabel("Subtask 1", { exact: true }).fill("Read chapter one");
+  await page.getByLabel("Target completion", { exact: true }).fill("tomorrow");
+  await page.getByRole("button", { name: "Create event", exact: true }).click();
+  await expect(
+    page.getByText(
+      "Enter subtask targets as YYYY-MM-DD HH:MM, or leave them empty.",
+    ),
+  ).toBeVisible();
+  await page.getByLabel("Target completion", { exact: true }).fill("");
+  await page.getByRole("button", { name: "Create event", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Open Independent reading", exact: true }),
+  ).toBeVisible();
 });

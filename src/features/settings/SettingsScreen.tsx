@@ -1,19 +1,19 @@
 import { ReactNode, useState } from "react";
 import { Pressable, Switch, View } from "react-native";
 import { CLASS_KINDS, COURSE_COLORS } from "../../domain/model";
-import { isTime, isTimezone, displayWallTime } from "../../domain/dates";
+import { isTime, displayWallTime } from "../../domain/dates";
 import { useAuth } from "../../providers/AuthProvider";
 import { useWorkspace } from "../../providers/WorkspaceProvider";
 import {
   Button,
   Chip,
-  Field,
   Icon,
   Screen,
   SectionTitle,
   Sheet,
   Text,
 } from "../../ui/primitives";
+import { DateTimeField } from "../../ui/DateTimeField";
 import { useTheme } from "../../ui/theme";
 
 function Setting({
@@ -62,9 +62,9 @@ export function SettingsScreen() {
   } = useWorkspace();
   const { session, signOut } = useAuth();
   const t = useTheme();
-  const [sheet, setSheet] = useState<
-    "accent" | "time" | "zone" | "signout" | null
-  >(null);
+  const [sheet, setSheet] = useState<"accent" | "time" | "signout" | null>(
+    null,
+  );
   const [value, setValue] = useState("");
   const [error, setError] = useState("");
   const update = (patch: Parameters<typeof updatePreferences>[0]) => {
@@ -174,17 +174,6 @@ export function SettingsScreen() {
               </Text>
             }
           />
-          <Setting
-            icon="earth"
-            title="Campus timezone"
-            description={p.timezone}
-            onPress={() => {
-              setValue(p.timezone);
-              setError("");
-              setSheet("zone");
-            }}
-            control={<Icon name="chevron-right" />}
-          />
         </View>
         <View>
           <SectionTitle>Account</SectionTitle>
@@ -272,35 +261,22 @@ export function SettingsScreen() {
           </View>
         </Sheet>
       ) : null}
-      {sheet === "time" || sheet === "zone" ? (
-        <Sheet
-          visible
-          title={sheet === "time" ? "Default due time" : "Campus timezone"}
-          onClose={() => setSheet(null)}
-        >
-          <Field
-            label={sheet === "time" ? "Time (HH:MM)" : "Timezone"}
+      {sheet === "time" ? (
+        <Sheet visible title="Default due time" onClose={() => setSheet(null)}>
+          <DateTimeField
+            label="Default due time"
+            mode="time"
             value={value}
             onChangeText={setValue}
-            autoCapitalize="none"
-            hint={
-              sheet === "zone"
-                ? "e.g. America/Vancouver. Existing classes retain their own timezone."
-                : "Use 24-hour time, such as 23:59."
-            }
           />
           {error ? <Text style={{ color: t.danger }}>{error}</Text> : null}
           <Button
             onPress={() => {
-              if (sheet === "time" ? !isTime(value) : !isTimezone(value)) {
-                setError("Enter a valid value.");
+              if (!isTime(value)) {
+                setError("Choose a valid time.");
                 return;
               }
-              update(
-                sheet === "time"
-                  ? { default_due_time: value }
-                  : { timezone: value },
-              );
+              update({ default_due_time: value });
               setSheet(null);
             }}
           >

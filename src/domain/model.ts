@@ -26,7 +26,15 @@ export interface BaseRecord {
   deleted_at: string | null;
 }
 
+export interface Semester extends BaseRecord {
+  name: string;
+  start_date: string;
+  end_date: string;
+  timezone: string;
+}
+
 export interface Course extends BaseRecord {
+  semester_id: string | null;
   name: string;
   code: string;
   professor: string;
@@ -91,12 +99,13 @@ export interface Occurrence {
 }
 
 export interface Snapshot {
+  semesters: Semester[];
   courses: Course[];
   events: StudyEvent[];
   preferences: Preferences[];
 }
 export type Table = keyof Snapshot;
-export type Entity = Course | StudyEvent | Preferences;
+export type Entity = Semester | Course | StudyEvent | Preferences;
 export interface Mutation {
   id: string;
   table: Table;

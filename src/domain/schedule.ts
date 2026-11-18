@@ -1,7 +1,44 @@
-import { addDateDays, dayKey, weekday, zonedISO } from "./dates";
+import {
+  addDateDays,
+  dayKey,
+  displayDate,
+  displayTime,
+  weekday,
+  zonedISO,
+} from "./dates";
 import { Occurrence, StudyEvent } from "./model";
 
 const timestamp = (item: Occurrence) => item.starts_at || item.due_at || "";
+
+export function weeklyScheduleLabel(
+  event: StudyEvent,
+  zone: string,
+  hour24 = false,
+  now = new Date(),
+): string {
+  const rule = event.recurrence;
+  if (!rule) return "";
+  const today = dayKey(now, rule.timezone);
+  const first =
+    today < rule.start_date
+      ? rule.start_date
+      : today > rule.end_date
+        ? addDateDays(rule.end_date, -6)
+        : today;
+  const instances = expandEvents(
+    [event],
+    new Date(zonedISO(first, "00:00", rule.timezone)),
+    new Date(zonedISO(addDateDays(first, 7), "00:00", rule.timezone)),
+  );
+  return (
+    instances
+      .map(
+        (o) =>
+          `${displayDate(o.starts_at!, zone, "EEE")} ${displayTime(o.starts_at!, zone, hour24)}–${displayTime(o.ends_at!, zone, hour24)}`,
+      )
+      .join(" · ") || "No meetings within teaching dates"
+  );
+}
 
 // Replacements are resolved before visibility filters so a hidden exam cannot resurrect its lecture.
 export function expandEvents(

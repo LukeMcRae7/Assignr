@@ -11,7 +11,7 @@ export interface Remote {
 }
 export class ConflictError extends Error {}
 interface Cache {
-  schema: 1;
+  schema: 2;
   snapshot: Snapshot;
   queue: Mutation[];
 }
@@ -21,7 +21,12 @@ export interface StoreState extends Cache {
   error: string | null;
   conflict: { mutation: Mutation; remote: Entity } | null;
 }
-const empty = (): Snapshot => ({ courses: [], events: [], preferences: [] });
+const empty = (): Snapshot => ({
+  semesters: [],
+  courses: [],
+  events: [],
+  preferences: [],
+});
 
 function put(snapshot: Snapshot, table: Table, record: Entity): Snapshot {
   return {
@@ -32,7 +37,7 @@ function put(snapshot: Snapshot, table: Table, record: Entity): Snapshot {
 
 export class StudyStore {
   private state: StoreState = {
-    schema: 1,
+    schema: 2,
     snapshot: empty(),
     queue: [],
     ready: false,
@@ -80,9 +85,10 @@ export class StudyStore {
     try {
       const raw = await this.storage.getItem(this.key);
       if (raw) {
-        const cache = JSON.parse(raw) as Cache;
+        const cache = JSON.parse(raw);
         if (
-          cache.schema !== 1 ||
+          ![1, 2].includes(cache.schema) ||
+          (cache.schema === 2 && !Array.isArray(cache.snapshot?.semesters)) ||
           !Array.isArray(cache.snapshot?.courses) ||
           !Array.isArray(cache.snapshot?.events) ||
           !Array.isArray(cache.snapshot?.preferences) ||
@@ -91,6 +97,15 @@ export class StudyStore {
           throw new Error(
             "The saved workspace could not be read. Your stored data has been preserved.",
           );
+        if (cache.schema === 1) {
+          cache.schema = 2;
+          cache.snapshot.semesters = [];
+          cache.snapshot.courses = cache.snapshot.courses.map((c: Entity) => ({
+            semester_id: null,
+            ...c,
+          }));
+          await this.storage.setItem(this.key, JSON.stringify(cache));
+        }
         this.publish({ snapshot: cache.snapshot, queue: cache.queue });
       }
       this.publish({ ready: true, status: this.remote ? "synced" : "local" });
@@ -122,7 +137,7 @@ export class StudyStore {
             expected_version: record.version,
           });
       }
-      return { schema: 1, snapshot, queue };
+      return { schema: 2, snapshot, queue };
     });
     void this.sync();
   }
@@ -185,7 +200,7 @@ export class StudyStore {
             )
             .at(-1);
           return {
-            schema: 1,
+            schema: 2,
             queue,
             snapshot: put(
               cache.snapshot,
@@ -201,7 +216,7 @@ export class StudyStore {
         let snapshot = server;
         for (const m of cache.queue)
           snapshot = put(snapshot, m.table, m.record);
-        return { schema: 1, snapshot, queue: cache.queue };
+        return { schema: 2, snapshot, queue: cache.queue };
       });
       this.publish({ status: this.online ? "synced" : "offline" });
     } catch (error) {
@@ -244,7 +259,7 @@ export class StudyStore {
           expected_version: conflict.remote.version,
         });
       return {
-        schema: 1,
+        schema: 2,
         queue,
         snapshot: put(cache.snapshot, conflict.mutation.table, record),
       };

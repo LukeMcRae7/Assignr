@@ -7,6 +7,7 @@ module.exports = defineConfig([
       ".expo/**",
       "dist/**",
       "dist-all/**",
+      "dist-ios-check/**",
       "node_modules/**",
       "test-results/**",
       "playwright-report/**",

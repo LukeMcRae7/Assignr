@@ -15,6 +15,9 @@ test("Postgres migration, access policies, and mutation RPC", async (t) => {
     await db.exec(
       await readFile("supabase/migrations/202611160001_initial.sql", "utf8"),
     );
+    await db.exec(
+      await readFile("supabase/migrations/202611170001_semesters.sql", "utf8"),
+    );
     const alice = randomUUID(),
       bob = randomUUID(),
       courseId = randomUUID();
@@ -92,6 +95,98 @@ test("Postgres migration, access policies, and mutation RPC", async (t) => {
         await assert.rejects(
           apply(event, 0, randomUUID(), "events"),
           (error: { code: string }) => error.code === "23503",
+        );
+      },
+    );
+    await t.test(
+      "semesters enforce ownership, valid dates, stable timezone, and safe deletion",
+      async () => {
+        await identity(alice);
+        const semester = {
+          id: randomUUID(),
+          user_id: alice,
+          version: 0,
+          deleted_at: null,
+          name: "Fall 2026",
+          start_date: "2026-09-01",
+          end_date: "2026-12-01",
+          timezone: "America/Vancouver",
+        };
+        const receipt = randomUUID();
+        await apply(semester, 0, receipt, "semesters");
+        assert.equal(
+          (await apply(semester, 0, receipt, "semesters")).rows[0].result
+            .version,
+          1,
+        );
+        await assert.rejects(
+          apply(
+            { ...semester, id: randomUUID(), end_date: "2026-02-30" },
+            0,
+            randomUUID(),
+            "semesters",
+          ),
+          (e: { code: string }) => e.code === "23514",
+        );
+        await assert.rejects(
+          apply(
+            { ...semester, timezone: "Asia/Tokyo" },
+            1,
+            randomUUID(),
+            "semesters",
+          ),
+          (e: { code: string }) => e.code === "23514",
+        );
+        await apply({ ...course, semester_id: semester.id }, 1);
+        await assert.rejects(
+          apply(
+            { ...semester, deleted_at: new Date().toISOString() },
+            1,
+            randomUUID(),
+            "semesters",
+          ),
+          (e: { code: string }) => e.code === "23514",
+        );
+        await assert.rejects(
+          apply({ ...semester, name: "Stale" }, 0, randomUUID(), "semesters"),
+          (e: { code: string }) => e.code === "40001",
+        );
+        await identity(bob);
+        assert.equal(
+          (await db.query("select * from semesters")).rows.length,
+          0,
+        );
+        await assert.rejects(
+          apply({
+            ...course,
+            id: randomUUID(),
+            user_id: bob,
+            semester_id: semester.id,
+          }),
+          (e: { code: string }) => e.code === "23503",
+        );
+        await assert.rejects(
+          apply(semester, 1, randomUUID(), "semesters"),
+          (e: { code: string }) => e.code === "42501",
+        );
+        await identity(alice);
+        await apply(
+          {
+            ...course,
+            semester_id: semester.id,
+            deleted_at: new Date().toISOString(),
+          },
+          2,
+        );
+        await apply(
+          { ...semester, deleted_at: new Date().toISOString() },
+          1,
+          randomUUID(),
+          "semesters",
+        );
+        await assert.rejects(
+          apply({ ...course, id: randomUUID(), semester_id: semester.id }),
+          (e: { code: string }) => e.code === "23503",
         );
       },
     );

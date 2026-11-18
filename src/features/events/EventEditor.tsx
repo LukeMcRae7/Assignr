@@ -46,7 +46,14 @@ export function EventEditor({
   originalDate,
   onClose,
 }: EventEditorProps) {
-  const { base, courses, events, preferences: p, saveEvent } = useWorkspace();
+  const {
+    base,
+    courses,
+    semesters,
+    events,
+    preferences: p,
+    saveEvent,
+  } = useWorkspace();
   const t = useTheme();
   const [draft, setDraft] = useState<StudyEvent>(
     () =>
@@ -127,6 +134,20 @@ export function EventEditor({
       e.course_id === draft.course_id &&
       CLASS_KINDS.includes(e.kind),
   );
+  const semester = CLASS_KINDS.includes(draft.kind)
+    ? semesters.find(
+        (s) =>
+          s.id === courses.find((c) => c.id === draft.course_id)?.semester_id,
+      )
+    : undefined;
+  const effectiveRule = semester
+    ? {
+        ...rule,
+        start_date: semester.start_date,
+        end_date: semester.end_date,
+        timezone: semester.timezone,
+      }
+    : rule;
   async function save() {
     setBusy(true);
     setError("");
@@ -138,7 +159,7 @@ export function EventEditor({
         due_at: null,
         recurrence: null,
       } as StudyEvent;
-      if (weekly && timing === "timed") next.recurrence = rule;
+      if (weekly && timing === "timed") next.recurrence = effectiveRule;
       else {
         if (!isDate(eventDate))
           throw new Error("Enter the date as YYYY-MM-DD.");
@@ -304,24 +325,43 @@ export function EventEditor({
               </Chip>
             ))}
           </View>
-          <View style={formRow}>
-            <DateTimeField
-              mode="date"
-              label="Term starts"
-              placeholder="YYYY-MM-DD"
-              value={rule.start_date}
-              onChangeText={(start_date) =>
-                setRule((r) => ({ ...r, start_date }))
-              }
-            />
-            <DateTimeField
-              mode="date"
-              label="Term ends"
-              placeholder="YYYY-MM-DD"
-              value={rule.end_date}
-              onChangeText={(end_date) => setRule((r) => ({ ...r, end_date }))}
-            />
-          </View>
+          {semester ? (
+            <View style={{ gap: 4 }}>
+              <Text style={{ fontWeight: "600" }}>{semester.name}</Text>
+              <Text muted style={{ fontSize: 13 }}>
+                Classes follow this semester’s teaching dates.
+              </Text>
+              {semester.timezone !== p.timezone ? (
+                <Text muted style={{ fontSize: 12 }}>
+                  Enter class times in {semester.timezone.replaceAll("_", " ")}.
+                  Your schedule displays in local time.
+                </Text>
+              ) : null}
+            </View>
+          ) : (
+            <>
+              <View style={formRow}>
+                <DateTimeField
+                  mode="date"
+                  label="Term starts"
+                  placeholder="YYYY-MM-DD"
+                  value={rule.start_date}
+                  onChangeText={(start_date) =>
+                    setRule((r) => ({ ...r, start_date }))
+                  }
+                />
+                <DateTimeField
+                  mode="date"
+                  label="Term ends"
+                  placeholder="YYYY-MM-DD"
+                  value={rule.end_date}
+                  onChangeText={(end_date) =>
+                    setRule((r) => ({ ...r, end_date }))
+                  }
+                />
+              </View>
+            </>
+          )}
           <View style={formRow}>
             <DateTimeField
               mode="time"
@@ -340,19 +380,12 @@ export function EventEditor({
               onChangeText={(end_time) => setRule((r) => ({ ...r, end_time }))}
             />
           </View>
-          <Field
-            label="Class timezone"
-            value={rule.timezone}
-            onChangeText={(timezone) => setRule((r) => ({ ...r, timezone }))}
-            autoCapitalize="none"
-          />
         </>
       ) : (
         <>
           <DateTimeField
             mode="date"
             label={timing === "due" ? "Due date" : "Start date"}
-            hint="YYYY-MM-DD"
             value={eventDate}
             onChangeText={(d) => {
               if (endDate === eventDate) setEndDate(d);
@@ -363,7 +396,6 @@ export function EventEditor({
             <DateTimeField
               mode="time"
               label="Due time"
-              hint={`24-hour time · ${p.timezone}`}
               value={dueTime}
               onChangeText={setDueTime}
             />
@@ -372,7 +404,6 @@ export function EventEditor({
               <DateTimeField
                 mode="date"
                 label="End date"
-                hint="YYYY-MM-DD"
                 value={endDate}
                 onChangeText={setEndDate}
               />
@@ -380,14 +411,12 @@ export function EventEditor({
                 <DateTimeField
                   mode="time"
                   label="Starts at"
-                  hint="24-hour time"
                   value={startTime}
                   onChangeText={setStartTime}
                 />
                 <DateTimeField
                   mode="time"
                   label="Ends at"
-                  hint={p.timezone}
                   value={endTime}
                   onChangeText={setEndTime}
                 />
@@ -536,7 +565,6 @@ export function EventEditor({
                   mode="date"
                   label="Original class date"
                   value={draft.occurrence_date || ""}
-                  hint="YYYY-MM-DD"
                   onChangeText={(occurrence_date) => patch({ occurrence_date })}
                 />
               ) : null}

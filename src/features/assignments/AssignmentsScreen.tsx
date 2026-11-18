@@ -17,10 +17,14 @@ import {
 } from "../../ui/primitives";
 import { useTheme } from "../../ui/theme";
 import { CourseEditor } from "../courses/CourseEditor";
+import { SemesterSelector } from "../semesters/SemesterSelector";
+import { semesterStatus } from "../../domain/semesters";
 
 export function AssignmentsScreen() {
   const {
     courses,
+    semesters,
+    selectedSemester,
     events,
     preferences: p,
     updatePreferences,
@@ -32,13 +36,31 @@ export function AssignmentsScreen() {
   const [completed, setCompleted] = useState(false);
   const [priority, setPriority] = useState(false);
   const [newCourse, setNewCourse] = useState(false);
-  const assignments = useMemo(
+  const allAssignments = useMemo(
     () =>
       assignmentsByDueDate(events, completed).filter(
         (e) => !priority || e.priority === "high",
       ),
     [events, completed, priority],
   );
+  const courseSemester = (courseId: string | null) =>
+    courses.find((c) => c.id === courseId)?.semester_id;
+  const assignments = allAssignments.filter(
+    (e) =>
+      !courseSemester(e.course_id) ||
+      courseSemester(e.course_id) === selectedSemester?.id,
+  );
+  const pastAssignments = allAssignments.filter((e) => {
+    const semester = semesters.find(
+      (s) => s.id === courseSemester(e.course_id),
+    );
+    return (
+      !e.completed &&
+      semester &&
+      semester.id !== selectedSemester?.id &&
+      semesterStatus(semester) === "Past"
+    );
+  });
   const groups = [
     ...courses.map((c) => ({
       id: c.id,
@@ -100,6 +122,7 @@ export function AssignmentsScreen() {
         ) : undefined
       }
     >
+      {semesters.length ? <SemesterSelector /> : null}
       {!courses.length && !events.length ? (
         <EmptyState
           icon="school-outline"
@@ -115,7 +138,11 @@ export function AssignmentsScreen() {
         <EmptyState
           icon="check-all"
           title={
-            priority ? "No high-priority assignments" : "You’re all caught up"
+            priority
+              ? "No high-priority assignments"
+              : pastAssignments.length
+                ? "No assignments in this semester"
+                : "You’re all caught up"
           }
           description={
             priority
@@ -237,6 +264,16 @@ export function AssignmentsScreen() {
           ))}
         </View>
       )}
+      {pastAssignments.length ? (
+        <View style={{ gap: 10 }}>
+          <Text style={{ fontSize: 20, fontWeight: "600" }}>
+            Unfinished from past semesters
+          </Text>
+          {pastAssignments.map((event) => (
+            <AssignmentRow key={event.id} event={event} showCourse />
+          ))}
+        </View>
+      ) : null}
       {filters ? (
         <Sheet
           visible

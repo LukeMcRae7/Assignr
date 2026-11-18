@@ -2,8 +2,11 @@ import { useState } from "react";
 import { Linking, Pressable, ScrollView, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { displayDate, displayWallTime } from "../../domain/dates";
-import { assignmentsByDueDate } from "../../domain/schedule";
+import { displayDate } from "../../domain/dates";
+import {
+  assignmentsByDueDate,
+  weeklyScheduleLabel,
+} from "../../domain/schedule";
 import { useWorkspace } from "../../providers/WorkspaceProvider";
 import {
   Button,
@@ -19,10 +22,13 @@ import {
 import { blend, useTheme } from "../../ui/theme";
 import { CourseEditor } from "./CourseEditor";
 import { AssignmentRow } from "../events/EventRows";
+import { exceptionsOutsideSemester } from "../../domain/semesters";
+import { format, parseISO } from "date-fns";
 
 export function CourseDetailScreen({ id }: { id: string }) {
   const {
     courses,
+    semesters,
     events,
     preferences: p,
     deleteCourse,
@@ -45,6 +51,10 @@ export function CourseDetailScreen({ id }: { id: string }) {
       />
     );
   const courseEvents = events.filter((e) => e.course_id === id && !e.cancelled);
+  const semester = semesters.find((s) => s.id === course.semester_id);
+  const outside = semester
+    ? exceptionsOutsideSemester(semester, [course], events)
+    : [];
   const assignments = assignmentsByDueDate(courseEvents);
   const classes = courseEvents.filter((e) => e.recurrence);
   const exams = courseEvents
@@ -123,6 +133,32 @@ export function CourseDetailScreen({ id }: { id: string }) {
             gap: 24,
           }}
         >
+          {semester ? (
+            <Text muted style={{ fontSize: 13 }}>
+              {semester.name} · {format(parseISO(semester.start_date), "MMM d")}{" "}
+              – {format(parseISO(semester.end_date), "MMM d, yyyy")}
+            </Text>
+          ) : (
+            <Button variant="secondary" onPress={() => setEdit(true)}>
+              Assign semester
+            </Button>
+          )}
+          {outside.length ? (
+            <View style={{ gap: 8 }}>
+              <Text style={{ color: t.danger }}>
+                Review class changes outside teaching dates
+              </Text>
+              {outside.map((e) => (
+                <Button
+                  key={e.id}
+                  variant="ghost"
+                  onPress={() => router.push(`/event/${e.id}`)}
+                >
+                  {e.title} · {e.occurrence_date}
+                </Button>
+              ))}
+            </View>
+          ) : null}
           {course.professor ? (
             <View
               style={{ flexDirection: "row", gap: 14, alignItems: "center" }}
@@ -147,12 +183,7 @@ export function CourseDetailScreen({ id }: { id: string }) {
                     key={e.id}
                     onPress={() => router.push(`/event/${e.id}`)}
                   >
-                    {e
-                      .recurrence!.days.map(
-                        (d) => ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"][d],
-                      )
-                      .join(", ")}{" "}
-                    {displayWallTime(e.recurrence!.start_time, p.hour24)}
+                    {weeklyScheduleLabel(e, p.timezone, p.hour24)}
                   </Chip>
                 ))
               ) : (
@@ -323,22 +354,7 @@ export function CourseDetailScreen({ id }: { id: string }) {
                 >
                   <Text style={{ fontWeight: "500" }}>{e.title}</Text>
                   <Text muted style={{ fontSize: 13 }}>
-                    {e
-                      .recurrence!.days.map(
-                        (d) =>
-                          [
-                            "Sunday",
-                            "Monday",
-                            "Tuesday",
-                            "Wednesday",
-                            "Thursday",
-                            "Friday",
-                            "Saturday",
-                          ][d],
-                      )
-                      .join(", ")}{" "}
-                    · {displayWallTime(e.recurrence!.start_time, p.hour24)}–
-                    {displayWallTime(e.recurrence!.end_time, p.hour24)}
+                    {weeklyScheduleLabel(e, p.timezone, p.hour24)}
                     {e.location ? ` · ${e.location}` : ""}
                   </Text>
                 </Pressable>

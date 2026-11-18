@@ -14,9 +14,20 @@ import {
 } from "../../ui/primitives";
 import { blend, useTheme } from "../../ui/theme";
 import { CourseEditor } from "./CourseEditor";
+import { SemesterSelector } from "../semesters/SemesterSelector";
 
 export function CoursesScreen() {
-  const { courses, commit, perform } = useWorkspace();
+  const {
+    courses: allCourses,
+    selectedSemester,
+    commit,
+    perform,
+  } = useWorkspace();
+  const courses = allCourses.filter(
+    (c) => c.semester_id === selectedSemester?.id,
+  );
+  const unassigned = allCourses.filter((c) => !c.semester_id);
+  const [assigning, setAssigning] = useState<Course | null>(null);
   const { width } = useWindowDimensions();
   const t = useTheme();
   const [editing, setEditing] = useState(false);
@@ -49,19 +60,47 @@ export function CoursesScreen() {
         ) : undefined
       }
       floating={
-        courses.length ? (
+        allCourses.length ? (
           <Fab label="Add course" onPress={() => setEditing(true)} />
         ) : undefined
       }
     >
+      <SemesterSelector />
+      {unassigned.length ? (
+        <View style={{ gap: 10 }}>
+          <Text style={{ fontWeight: "600" }}>
+            Assign your existing courses
+          </Text>
+          <Text muted style={{ fontSize: 13 }}>
+            Their schedules stay unchanged until you choose a semester.
+          </Text>
+          {unassigned.map((c) => (
+            <Button
+              key={c.id}
+              variant="secondary"
+              onPress={() => setAssigning(c)}
+            >
+              Assign semester · {c.name}
+            </Button>
+          ))}
+        </View>
+      ) : null}
       {!courses.length ? (
         <EmptyState
           icon="school-outline"
-          title="Make room for a great term"
-          description="Start with a course. Add its weekly classes and keep every deadline connected."
+          title={
+            allCourses.length
+              ? "No courses in this semester"
+              : "Make room for a great term"
+          }
+          description={
+            allCourses.length
+              ? "Add a course here, or switch semesters to see your other courses."
+              : "Start with a course. Add its weekly classes and keep every deadline connected."
+          }
           action={
             <Button icon="plus" onPress={() => setEditing(true)}>
-              Create your first course
+              {allCourses.length ? "Add course" : "Create your first course"}
             </Button>
           }
         />
@@ -184,6 +223,9 @@ export function CoursesScreen() {
           ))}
         </View>
       )}
+      {assigning ? (
+        <CourseEditor course={assigning} onClose={() => setAssigning(null)} />
+      ) : null}
       {editing ? (
         <CourseEditor
           onClose={() => setEditing(false)}

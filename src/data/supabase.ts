@@ -124,7 +124,12 @@ export function createRemote(userId: string): Remote {
   const client = supabase!;
   return {
     async pull() {
-      const snapshot: Snapshot = { courses: [], events: [], preferences: [] };
+      const snapshot: Snapshot = {
+        semesters: [],
+        courses: [],
+        events: [],
+        preferences: [],
+      };
       await Promise.all(
         (Object.keys(snapshot) as Table[]).map(async (table) => {
           const rows: Entity[] = [];

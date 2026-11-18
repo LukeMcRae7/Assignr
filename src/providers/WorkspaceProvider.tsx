@@ -13,6 +13,7 @@ import NetInfo from "@react-native-community/netinfo";
 import * as Crypto from "expo-crypto";
 import {
   Course,
+  Semester,
   defaultPreferences,
   Entity,
   Occurrence,
@@ -25,9 +26,17 @@ import { weekday } from "../domain/dates";
 import { StudyStore } from "../data/store";
 import { createRemote, supabase } from "../data/supabase";
 import { useAuth } from "./AuthProvider";
+import { useDeviceTimezone } from "../ui/useDeviceTimezone";
+import {
+  defaultSemester,
+  resolveSemesterEvents,
+  validateSemester,
+} from "../domain/semesters";
 
 export const newId = () => Crypto.randomUUID();
 function useCreateWorkspace(userId: string) {
+  const timezone = useDeviceTimezone();
+  const [selectedSemesterId, selectSemester] = useState<string | null>(null);
   const [store] = useState(
     () =>
       new StudyStore(
@@ -82,8 +91,20 @@ function useCreateWorkspace(userId: string) {
     const id = setTimeout(() => setNotice(null), 5000);
     return () => clearTimeout(id);
   }, [notice]);
-  const preferences =
-    state.snapshot.preferences[0] || defaultPreferences(userId);
+  const preferences = {
+    ...(state.snapshot.preferences[0] || defaultPreferences(userId)),
+    timezone,
+  };
+  const semesters = useMemo(
+    () =>
+      state.snapshot.semesters
+        .filter((s) => !s.deleted_at)
+        .sort((a, b) => b.start_date.localeCompare(a.start_date)),
+    [state.snapshot.semesters],
+  );
+  const selectedSemester =
+    semesters.find((s) => s.id === selectedSemesterId) ||
+    defaultSemester(semesters);
   const courses = useMemo(
     () =>
       state.snapshot.courses
@@ -94,8 +115,13 @@ function useCreateWorkspace(userId: string) {
     [state.snapshot.courses],
   );
   const events = useMemo(
-    () => state.snapshot.events.filter((e) => !e.deleted_at),
-    [state.snapshot.events],
+    () =>
+      resolveSemesterEvents(
+        state.snapshot.events.filter((e) => !e.deleted_at),
+        courses,
+        semesters,
+      ),
+    [state.snapshot.events, courses, semesters],
   );
   const commit = (changes: { table: Table; record: Entity }[]) =>
     store.commit(changes);
@@ -108,22 +134,53 @@ function useCreateWorkspace(userId: string) {
   async function saveCourse(course: Course) {
     const error = validateCourse(course);
     if (error) throw new Error(error);
+    if (!semesters.some((s) => s.id === course.semester_id))
+      throw new Error("Choose a semester for this course.");
     await commit([
       { table: "courses", record: { ...course, name: course.name.trim() } },
     ]);
   }
+  async function saveSemester(semester: Semester) {
+    const error = validateSemester(semester);
+    if (error) throw new Error(error);
+    const existing = semesters.find((s) => s.id === semester.id);
+    if (existing && existing.timezone !== semester.timezone)
+      throw new Error("A semester keeps the timezone it was created in.");
+    await commit([
+      {
+        table: "semesters",
+        record: { ...semester, name: semester.name.trim() },
+      },
+    ]);
+  }
+  async function deleteSemester(semester: Semester) {
+    if (courses.some((c) => c.semester_id === semester.id))
+      throw new Error("Move or delete this semester’s courses first.");
+    await commit([
+      {
+        table: "semesters",
+        record: { ...semester, deleted_at: new Date().toISOString() },
+      },
+    ]);
+  }
   async function saveEvent(event: StudyEvent) {
+    event = resolveSemesterEvents([event], courses, semesters)[0];
     const error = validateEvent(event);
     if (error && !event.cancelled) throw new Error(error);
     if (event.parent_event_id) {
       const parent = events.find((e) => e.id === event.parent_event_id);
       const rule = parent?.recurrence;
+      const existing = events.find((e) => e.id === event.id);
+      const unchangedDate =
+        existing?.parent_event_id === event.parent_event_id &&
+        existing?.occurrence_date === event.occurrence_date;
       if (
         !rule ||
         !event.occurrence_date ||
-        event.occurrence_date < rule.start_date ||
-        event.occurrence_date > rule.end_date ||
-        !rule.days.includes(weekday(event.occurrence_date))
+        (!unchangedDate &&
+          (event.occurrence_date < rule.start_date ||
+            event.occurrence_date > rule.end_date ||
+            !rule.days.includes(weekday(event.occurrence_date))))
       )
         throw new Error("The original class does not meet on that date.");
       if (parent.course_id !== event.course_id)
@@ -230,10 +287,15 @@ function useCreateWorkspace(userId: string) {
     userId,
     store,
     courses,
+    semesters,
+    selectedSemester,
+    selectSemester,
     events,
     preferences,
     base,
     saveCourse,
+    saveSemester,
+    deleteSemester,
     saveEvent,
     deleteCourse,
     deleteEvent,

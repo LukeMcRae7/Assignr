@@ -2,8 +2,18 @@ import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { Course, COURSE_COLORS, COURSE_ICONS } from "../../domain/model";
 import { useWorkspace } from "../../providers/WorkspaceProvider";
-import { Button, Field, formRow, Icon, Sheet, Text } from "../../ui/primitives";
+import {
+  Button,
+  Chip,
+  Field,
+  formRow,
+  Icon,
+  Sheet,
+  Text,
+} from "../../ui/primitives";
 import { useTheme } from "../../ui/theme";
+import { SemesterEditor } from "../semesters/SemesterEditor";
+import { format, parseISO } from "date-fns";
 
 export function CourseEditor({
   course,
@@ -14,12 +24,23 @@ export function CourseEditor({
   onClose(): void;
   onSaved?(course: Course): void;
 }) {
-  const { base, courses, saveCourse } = useWorkspace();
+  const {
+    base,
+    courses,
+    semesters,
+    selectedSemester,
+    selectSemester,
+    preferences,
+    events,
+    saveCourse,
+  } = useWorkspace();
+  const [creatingSemester, setCreatingSemester] = useState(!semesters.length);
   const t = useTheme();
   const [draft, setDraft] = useState<Course>(
     () =>
       course || {
         ...base(),
+        semester_id: selectedSemester?.id || null,
         name: "",
         code: "",
         professor: "",
@@ -33,6 +54,18 @@ export function CourseEditor({
   const [error, setError] = useState("");
   const patch = (value: Partial<Course>) =>
     setDraft((d) => ({ ...d, ...value }));
+  const semester = semesters.find((s) => s.id === draft.semester_id);
+  if (creatingSemester)
+    return (
+      <SemesterEditor
+        onClose={() => setCreatingSemester(false)}
+        onSaved={(s) => {
+          patch({ semester_id: s.id });
+          selectSemester(s.id);
+          setCreatingSemester(false);
+        }}
+      />
+    );
   async function save() {
     setBusy(true);
     setError("");
@@ -62,6 +95,62 @@ export function CourseEditor({
         </Button>
       }
     >
+      <View style={{ gap: 10 }}>
+        <Text style={{ fontSize: 13, fontWeight: "600" }}>Semester</Text>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          {semesters.map((s) => (
+            <Chip
+              key={s.id}
+              selected={s.id === draft.semester_id}
+              onPress={() => patch({ semester_id: s.id })}
+            >
+              {s.name}
+            </Chip>
+          ))}
+        </View>
+        <Button
+          variant="ghost"
+          icon="plus"
+          onPress={() => setCreatingSemester(true)}
+        >
+          New semester
+        </Button>
+        {semester ? (
+          <Text muted style={{ fontSize: 13 }}>
+            Regular classes:{" "}
+            {format(parseISO(semester.start_date), "MMM d, yyyy")} –{" "}
+            {format(parseISO(semester.end_date), "MMM d, yyyy")} ·{" "}
+            {semester.timezone.replaceAll("_", " ")}
+          </Text>
+        ) : (
+          <Text muted>Choose a semester to continue.</Text>
+        )}
+        {course &&
+        course.semester_id !== draft.semester_id &&
+        events.some((e) => e.course_id === course.id && e.recurrence) ? (
+          <View style={{ gap: 8 }}>
+            <Text muted style={{ fontSize: 13 }}>
+              Saving applies this semester’s teaching dates and timezone to
+              existing regular classes. Individual class changes will be kept.
+            </Text>
+            {events
+              .filter((e) => e.course_id === course.id && e.recurrence)
+              .map((e) => (
+                <Text key={e.id} muted style={{ fontSize: 12 }}>
+                  Previously: {e.recurrence!.start_date} –{" "}
+                  {e.recurrence!.end_date} ·{" "}
+                  {e.recurrence!.timezone.replaceAll("_", " ")}
+                </Text>
+              ))}
+          </View>
+        ) : null}
+        {semester && semester.timezone !== preferences.timezone ? (
+          <Text muted style={{ fontSize: 12 }}>
+            Class times are entered in the semester timezone. Your schedule
+            displays in your device timezone.
+          </Text>
+        ) : null}
+      </View>
       <Field
         label="Course name"
         placeholder="e.g. Data Structures"

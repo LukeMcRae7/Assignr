@@ -1,8 +1,12 @@
 import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
-import { displayDate, displayTime, displayWallTime } from "../../domain/dates";
-import { occurrencesOnDate, subtaskProgress } from "../../domain/schedule";
+import { displayDate, displayTime } from "../../domain/dates";
+import {
+  occurrencesOnDate,
+  subtaskProgress,
+  weeklyScheduleLabel,
+} from "../../domain/schedule";
 import { useWorkspace } from "../../providers/WorkspaceProvider";
 import { Button, Confirm, Icon, Panel, Sheet, Text } from "../../ui/primitives";
 import { useTheme } from "../../ui/theme";
@@ -77,27 +81,13 @@ export function EventDetail({ id, date }: { id: string; date?: string }) {
       <Panel>
         {event.recurrence ? (
           <>
-            <Text>
-              {event.recurrence.days
-                .map(
-                  (d) =>
-                    [
-                      "Sunday",
-                      "Monday",
-                      "Tuesday",
-                      "Wednesday",
-                      "Thursday",
-                      "Friday",
-                      "Saturday",
-                    ][d],
-                )
-                .join(", ")}
-            </Text>
-            <Text muted>
-              {displayWallTime(event.recurrence.start_time, p.hour24)} –{" "}
-              {displayWallTime(event.recurrence.end_time, p.hour24)} ·{" "}
-              {event.recurrence.timezone}
-            </Text>
+            <Text>{weeklyScheduleLabel(event, p.timezone, p.hour24)}</Text>
+            {event.recurrence.timezone !== p.timezone ? (
+              <Text muted style={{ fontSize: 12 }}>
+                Shown in your device timezone. The weekly schedule stays
+                anchored to its original timezone.
+              </Text>
+            ) : null}
             <Text muted style={{ fontSize: 13 }}>
               {event.recurrence.start_date} through {event.recurrence.end_date}
             </Text>
