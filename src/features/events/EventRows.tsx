@@ -10,7 +10,7 @@ import { blend, useTheme } from "../../ui/theme";
 export const kindIcons: Record<string, string> = {
   assignment: "clipboard-text-outline",
   exam: "file-document-outline",
-  quiz: "lightning-bolt-outline",
+  quiz: "clipboard-check-outline",
   lecture: "school-outline",
   tutorial: "account-group-outline",
   lab: "flask-outline",
@@ -165,9 +165,13 @@ export function AssignmentRow({
 export function EventRow({
   occurrence,
   highlight = true,
+  onOpen,
+  disabled = false,
 }: {
   occurrence: Occurrence;
   highlight?: boolean;
+  onOpen?(occurrence: Occurrence): void;
+  disabled?: boolean;
 }) {
   const { courses, preferences: p } = useWorkspace();
   const t = useTheme();
@@ -184,11 +188,14 @@ export function EventRow({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`Open ${event.title}`}
+      disabled={disabled}
       onPress={() =>
-        router.push({
-          pathname: "/event/[id]",
-          params: { id: event.id, date: occurrence.original_date || "" },
-        })
+        onOpen
+          ? onOpen(occurrence)
+          : router.push({
+              pathname: "/event/[id]",
+              params: { id: event.id, date: occurrence.original_date || "" },
+            })
       }
       style={({ pressed }) => ({
         flexDirection: "row",

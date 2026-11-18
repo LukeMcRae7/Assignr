@@ -26,11 +26,12 @@ test("course, classes, assignment, and in-class exam stay consistent", async ({
   await page
     .getByRole("button", { name: "Manage classes", exact: true })
     .click();
-  await page.getByLabel("Title", { exact: true }).fill("Lecture");
   await page.getByLabel("Starts at", { exact: true }).fill("09:30");
   await page.getByLabel("Ends at", { exact: true }).fill("10:30");
   await page.getByLabel("Location", { exact: true }).fill("B9201");
-  await page.getByRole("button", { name: "Create event", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Create lecture", exact: true })
+    .click();
   await expect(page.getByText("Weekly classes", { exact: true })).toBeVisible();
   await page
     .getByRole("button", { name: "Add assignment", exact: true })
@@ -40,7 +41,9 @@ test("course, classes, assignment, and in-class exam stay consistent", async ({
   await page
     .getByLabel("Subtask 1", { exact: true })
     .fill("Read the questions");
-  await page.getByRole("button", { name: "Create event", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Create assignment", exact: true })
+    .click();
   await page.getByRole("link", { name: "ToDo", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Collapse Data Structures" }),
@@ -60,10 +63,13 @@ test("course, classes, assignment, and in-class exam stay consistent", async ({
   await page.getByRole("link", { name: "Today", exact: true }).click();
   await page.getByRole("button", { name: "Open Lecture", exact: true }).click();
   await page
+    .getByRole("button", { name: "More event actions", exact: true })
+    .click();
+  await page
     .getByRole("button", { name: "Add in-class exam or quiz", exact: true })
     .click();
   await page.getByLabel("Title", { exact: true }).fill("Midterm");
-  await page.getByRole("button", { name: "Create event", exact: true }).click();
+  await page.getByRole("button", { name: "Create exam", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Open Midterm", exact: true }),
   ).toBeVisible();
@@ -118,23 +124,26 @@ test("standalone plans work without a course and fit the viewport", async ({
   expect(overflow).toBe(false);
 });
 
-test("invalid subtask targets stay editable and cannot be saved", async ({
+test("subtask targets use optional dates rather than enforced deadlines", async ({
   page,
 }) => {
   await page.goto("/event/new");
   await page.getByLabel("Title", { exact: true }).fill("Independent reading");
   await page.getByRole("button", { name: "Add subtask", exact: true }).click();
   await page.getByLabel("Subtask 1", { exact: true }).fill("Read chapter one");
-  await page.getByLabel("Target completion", { exact: true }).fill("tomorrow");
-  await page.getByRole("button", { name: "Create event", exact: true }).click();
-  await expect(
-    page.getByText(
-      "Enter subtask targets as YYYY-MM-DD HH:MM, or leave them empty.",
-    ),
-  ).toBeVisible();
-  await page.getByLabel("Target completion", { exact: true }).fill("");
-  await page.getByRole("button", { name: "Create event", exact: true }).click();
-  await expect(
-    page.getByRole("button", { name: "Open Independent reading", exact: true }),
-  ).toBeVisible();
+  await page.getByLabel("Target date 1", { exact: true }).fill("2030-03-01");
+  await page
+    .getByRole("button", { name: "Create assignment", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Open Independent reading", exact: true })
+    .click();
+  await expect(page.getByText("Mar 1", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Edit event", exact: true }).click();
+  await page.getByLabel("Target date 1", { exact: true }).fill("");
+  await page.getByRole("button", { name: "Save changes", exact: true }).click();
+  const snapshot = await page.evaluate(
+    () => JSON.parse(localStorage.getItem("assignr:v1:local")!).snapshot,
+  );
+  expect(snapshot.events[0].subtasks[0].target_date).toBeNull();
 });

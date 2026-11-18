@@ -17,6 +17,8 @@ export function DateTimeField({
   mode,
   onChangeText,
   hint,
+  compact = false,
+  onClear,
 }: DateTimeFieldProps) {
   const t = useTheme();
   const { preferences } = useWorkspace();
@@ -41,29 +43,36 @@ export function DateTimeField({
     else setOpen(!open);
   }
   return (
-    <View style={{ flexGrow: 1, flexBasis: 0, minWidth: 0, gap: 7 }}>
-      <Text style={{ fontSize: 13, fontWeight: "600" }}>{label}</Text>
+    <View testID="form-field" style={{ flexShrink: 0, minWidth: 0, gap: 6 }}>
+      {!compact ? (
+        <Text muted style={{ fontSize: 12, fontWeight: "500" }}>
+          {label}
+        </Text>
+      ) : null}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={label}
         onPress={show}
         style={{
           borderWidth: 1,
-          borderColor: t.border,
+          borderColor: "transparent",
           borderRadius: 10,
           backgroundColor: t.surface,
-          padding: 12,
-          minHeight: 48,
+          padding: compact ? 8 : 11,
+          minHeight: 44,
+          gap: 6,
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
         }}
       >
-        <Text>
-          {mode === "date"
-            ? format(selected, "MMM d, yyyy")
-            : displayWallTime(value, preferences.hour24)}
-        </Text>
+        {!compact || value ? (
+          <Text style={{ fontSize: compact ? 12 : 15 }}>
+            {mode === "date"
+              ? format(selected, compact ? "MMM d" : "MMM d, yyyy")
+              : displayWallTime(value, preferences.hour24)}
+          </Text>
+        ) : null}
         <Icon
           name={mode === "date" ? "calendar-blank-outline" : "clock-outline"}
           size={18}
@@ -128,6 +137,18 @@ export function DateTimeField({
               <Button variant="ghost" onPress={() => setOpen(false)}>
                 Done
               </Button>
+              {value && onClear ? (
+                <Button
+                  compact
+                  variant="ghost"
+                  onPress={() => {
+                    onClear();
+                    setOpen(false);
+                  }}
+                >
+                  Clear date
+                </Button>
+              ) : null}
             </SafeAreaView>
           </View>
         </Modal>

@@ -50,14 +50,17 @@ export function CoursesScreen() {
     <Screen
       title="Courses"
       actions={
-        courses.length > 1 ? (
-          <IconButton
-            icon={organizing ? "check" : "sort-variant"}
-            label={organizing ? "Done organizing" : "Organize courses"}
-            selected={organizing}
-            onPress={() => setOrganizing(!organizing)}
-          />
-        ) : undefined
+        <>
+          <SemesterSelector compact />
+          {courses.length > 1 ? (
+            <IconButton
+              icon={organizing ? "check" : "sort-variant"}
+              label={organizing ? "Done organizing" : "Organize courses"}
+              selected={organizing}
+              onPress={() => setOrganizing(!organizing)}
+            />
+          ) : null}
+        </>
       }
       floating={
         allCourses.length ? (
@@ -65,7 +68,6 @@ export function CoursesScreen() {
         ) : undefined
       }
     >
-      <SemesterSelector />
       {unassigned.length ? (
         <View style={{ gap: 10 }}>
           <Text style={{ fontWeight: "600" }}>

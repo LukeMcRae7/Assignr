@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Pressable, View } from "react-native";
+import { Pressable, View, useWindowDimensions } from "react-native";
 import { router } from "expo-router";
 import { assignmentsByDueDate } from "../../domain/schedule";
 import { useWorkspace } from "../../providers/WorkspaceProvider";
@@ -16,6 +16,7 @@ import {
   Text,
 } from "../../ui/primitives";
 import { useTheme } from "../../ui/theme";
+import { EventEditor } from "../events/EventEditor";
 import { CourseEditor } from "../courses/CourseEditor";
 import { SemesterSelector } from "../semesters/SemesterSelector";
 import { semesterStatus } from "../../domain/semesters";
@@ -31,6 +32,8 @@ export function AssignmentsScreen() {
     perform,
   } = useWorkspace();
   const t = useTheme();
+  const { width } = useWindowDimensions();
+  const [composing, setComposing] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState(false);
   const [completed, setCompleted] = useState(false);
@@ -82,10 +85,39 @@ export function AssignmentsScreen() {
       ),
     }))
     .filter((c) => c.assignments.length);
-  const create = () => router.push("/event/new");
+  const create = () =>
+    width >= 1100 ? setComposing(true) : router.push("/event/new");
   return (
     <Screen
       title="ToDo"
+      aside={
+        composing ? (
+          <EventEditor
+            kind="assignment"
+            context="assignments"
+            presentation="inline"
+            onClose={() => setComposing(false)}
+          />
+        ) : width >= 1100 ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Add assignment"
+            onPress={() => setComposing(true)}
+            style={{
+              minHeight: 52,
+              padding: 16,
+              borderRadius: 12,
+              backgroundColor: t.surface,
+              borderWidth: 1,
+              borderColor: t.border,
+            }}
+          >
+            <Text muted style={{ fontSize: 14 }}>
+              Add assignment
+            </Text>
+          </Pressable>
+        ) : undefined
+      }
       actions={
         <>
           <IconButton
@@ -117,7 +149,7 @@ export function AssignmentsScreen() {
         </>
       }
       floating={
-        courses.length || events.length ? (
+        width < 1100 && (courses.length || events.length) ? (
           <Fab label="Add assignment" onPress={create} />
         ) : undefined
       }

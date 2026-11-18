@@ -57,7 +57,8 @@ export interface Subtask {
   id: string;
   title: string;
   completed: boolean;
-  target_at: string | null;
+  target_date?: string | null;
+  target_at?: string | null;
 }
 
 export interface StudyEvent extends BaseRecord {

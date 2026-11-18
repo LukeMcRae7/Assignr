@@ -25,13 +25,16 @@ test("semester setup, switching, date edits, and history keep standalone plans v
     0,
   );
   await expect(page.getByLabel("Term starts", { exact: true })).toHaveCount(0);
-  await page.getByLabel("Title", { exact: true }).fill("Lecture");
-  await page.getByRole("button", { name: "Create event", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Create lecture", exact: true })
+    .click();
   await page
     .getByRole("button", { name: "Add assignment", exact: true })
     .click();
   await page.getByLabel("Title", { exact: true }).fill("Past semester work");
-  await page.getByRole("button", { name: "Create event", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Create assignment", exact: true })
+    .click();
   await page.getByRole("link", { name: "Courses", exact: true }).click();
   await page.getByRole("button", { name: "Fall 2026", exact: true }).click();
   await page.getByRole("button", { name: "Add semester", exact: true }).click();
@@ -81,7 +84,7 @@ test("semester setup, switching, date edits, and history keep standalone plans v
     0,
   );
   await page.getByText("Default due time", { exact: true }).click();
-  await page.getByLabel("Default due time", { exact: true }).fill("18:45");
+  await page.locator('input[aria-label="Default due time"]').fill("18:45");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("6:45 PM", { exact: true })).toBeVisible();
 });

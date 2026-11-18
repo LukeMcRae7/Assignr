@@ -3,7 +3,7 @@ import { Pressable, View, useWindowDimensions } from "react-native";
 import { addMonths, format, parseISO, startOfMonth } from "date-fns";
 import { router } from "expo-router";
 import { addDateDays, dayKey, weekday, zonedISO } from "../../domain/dates";
-import { EVENT_KINDS, EventKind } from "../../domain/model";
+import { EVENT_KINDS, EventKind, Occurrence } from "../../domain/model";
 import { expandEvents, occurrencesOnDate } from "../../domain/schedule";
 import { useWorkspace } from "../../providers/WorkspaceProvider";
 import {
@@ -18,6 +18,8 @@ import {
   Text,
 } from "../../ui/primitives";
 import { blend, useTheme } from "../../ui/theme";
+import { EventEditor } from "../events/EventEditor";
+import { EventDetail } from "../events/EventDetail";
 import { EventRow } from "../events/EventRows";
 
 const typeLabels: Record<EventKind, string> = {
@@ -38,6 +40,11 @@ export function CalendarScreen() {
   const [month, setMonth] = useState(startOfMonth(parseISO(today)));
   const [selected, setSelected] = useState(today);
   const [filters, setFilters] = useState(false);
+  const [composing, setComposing] = useState(false);
+  const [detail, setDetail] = useState<Occurrence | null>(null);
+  const [detailEditing, setDetailEditing] = useState(false);
+  const panelOpen = composing || !!detail;
+  const wide = width >= 1200 && !panelOpen;
   const first = format(month, "yyyy-MM-dd");
   const gridStart = addDateDays(first, -weekday(first));
   const dates = Array.from({ length: 42 }, (_, i) => addDateDays(gridStart, i));
@@ -60,6 +67,29 @@ export function CalendarScreen() {
   return (
     <Screen
       title="Calendar"
+      aside={
+        composing ? (
+          <EventEditor
+            context="general"
+            kind="activity"
+            date={selected}
+            presentation="inline"
+            onClose={() => setComposing(false)}
+          />
+        ) : detail ? (
+          <EventDetail
+            key={detail.key}
+            id={detail.event.id}
+            date={detail.original_date || undefined}
+            presentation="inline"
+            onEditStart={() => setDetailEditing(true)}
+            onClose={() => {
+              setDetail(null);
+              setDetailEditing(false);
+            }}
+          />
+        ) : undefined
+      }
       actions={
         <>
           <IconButton
@@ -78,27 +108,35 @@ export function CalendarScreen() {
         </>
       }
       floating={
-        <Fab
-          onPress={() =>
-            router.push({
-              pathname: "/event/new",
-              params: { date: selected, kind: "activity" },
-            })
-          }
-        />
+        !panelOpen ? (
+          <Fab
+            onPress={() =>
+              width >= 1100
+                ? setComposing(true)
+                : router.push({
+                    pathname: "/event/new",
+                    params: {
+                      date: selected,
+                      kind: "activity",
+                      context: "general",
+                    },
+                  })
+            }
+          />
+        ) : undefined
       }
     >
       <View
         style={{
-          flexDirection: width >= 1200 ? "row" : "column",
+          flexDirection: wide ? "row" : "column",
           gap: 36,
           alignItems: "flex-start",
         }}
       >
         <View
           style={{
-            flex: width >= 1200 ? 1 : undefined,
-            width: width >= 1200 ? undefined : "100%",
+            flex: wide ? 1 : undefined,
+            width: wide ? undefined : "100%",
           }}
         >
           <View
@@ -253,12 +291,12 @@ export function CalendarScreen() {
             </Text>
           </View>
         </View>
-        <View style={{ width: width >= 1200 ? 370 : "100%", gap: 22 }}>
+        <View style={{ width: wide ? 370 : "100%", gap: 22 }}>
           <Text
             style={{
               fontSize: 18,
               fontWeight: "500",
-              textAlign: width >= 1200 ? "left" : "center",
+              textAlign: wide ? "left" : "center",
             }}
           >
             {format(parseISO(selected), "EEEE, MMMM d, yyyy")}
@@ -287,7 +325,14 @@ export function CalendarScreen() {
                 <View key={kind} style={{ gap: 8 }}>
                   <SectionTitle>{typeLabels[kind]}</SectionTitle>
                   {items.map((o) => (
-                    <EventRow key={o.key} occurrence={o} />
+                    <EventRow
+                      key={o.key}
+                      occurrence={o}
+                      disabled={composing || detailEditing}
+                      onOpen={
+                        width >= 1100 ? (item) => setDetail(item) : undefined
+                      }
+                    />
                   ))}
                 </View>
               ) : null;

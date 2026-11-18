@@ -297,7 +297,7 @@ export function CourseDetailScreen({ id }: { id: string }) {
                     name={
                       e.kind === "exam"
                         ? "file-document-outline"
-                        : "lightning-bolt-outline"
+                        : "clipboard-check-outline"
                     }
                     color={t.danger}
                   />

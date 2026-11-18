@@ -45,6 +45,8 @@ export function validateEvent(event: StudyEvent): string | null {
     return "Assignments need a due date and time.";
   if (event.subtasks.some((s) => !s.title.trim()))
     return "Give each subtask a title or remove it.";
+  if (event.subtasks.some((s) => s.target_date && !isDate(s.target_date)))
+    return "Choose a valid subtask target date.";
   if (
     event.subtasks.some(
       (s) => s.target_at && !/^\d{4}-\d{2}-\d{2}T/.test(s.target_at),

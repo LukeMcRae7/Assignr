@@ -6,14 +6,14 @@ import {
   Button,
   Chip,
   Field,
-  formRow,
+  FormRow,
   Icon,
   Sheet,
   Text,
 } from "../../ui/primitives";
 import { useTheme } from "../../ui/theme";
 import { SemesterEditor } from "../semesters/SemesterEditor";
-import { format, parseISO } from "date-fns";
+import { useDraftGuard } from "../../ui/useDraftGuard";
 
 export function CourseEditor({
   course,
@@ -30,7 +30,6 @@ export function CourseEditor({
     semesters,
     selectedSemester,
     selectSemester,
-    preferences,
     events,
     saveCourse,
   } = useWorkspace();
@@ -52,6 +51,12 @@ export function CourseEditor({
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [initial] = useState(() => JSON.stringify(draft));
+  const guard = useDraftGuard(
+    !creatingSemester && initial !== JSON.stringify(draft),
+    busy,
+    onClose,
+  );
   const patch = (value: Partial<Course>) =>
     setDraft((d) => ({ ...d, ...value }));
   const semester = semesters.find((s) => s.id === draft.semester_id);
@@ -71,8 +76,10 @@ export function CourseEditor({
     setError("");
     try {
       await saveCourse(draft);
-      onSaved?.(draft);
-      onClose();
+      guard.finish(() => {
+        onSaved?.(draft);
+        onClose();
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save course.");
     } finally {
@@ -80,177 +87,164 @@ export function CourseEditor({
     }
   }
   return (
-    <Sheet
-      visible
-      title={course ? "Edit course" : "New course"}
-      onClose={onClose}
-      footer={
-        <Button
-          onPress={() => {
-            void save();
-          }}
-          busy={busy}
-        >
-          {course ? "Save course" : "Create course"}
-        </Button>
-      }
-    >
-      <View style={{ gap: 10 }}>
-        <Text style={{ fontSize: 13, fontWeight: "600" }}>Semester</Text>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-          {semesters.map((s) => (
-            <Chip
-              key={s.id}
-              selected={s.id === draft.semester_id}
-              onPress={() => patch({ semester_id: s.id })}
-            >
-              {s.name}
-            </Chip>
-          ))}
-        </View>
-        <Button
-          variant="ghost"
-          icon="plus"
-          onPress={() => setCreatingSemester(true)}
-        >
-          New semester
-        </Button>
-        {semester ? (
-          <Text muted style={{ fontSize: 13 }}>
-            Regular classes:{" "}
-            {format(parseISO(semester.start_date), "MMM d, yyyy")} –{" "}
-            {format(parseISO(semester.end_date), "MMM d, yyyy")} ·{" "}
-            {semester.timezone.replaceAll("_", " ")}
-          </Text>
-        ) : (
-          <Text muted>Choose a semester to continue.</Text>
-        )}
-        {course &&
-        course.semester_id !== draft.semester_id &&
-        events.some((e) => e.course_id === course.id && e.recurrence) ? (
-          <View style={{ gap: 8 }}>
-            <Text muted style={{ fontSize: 13 }}>
-              Saving applies this semester’s teaching dates and timezone to
-              existing regular classes. Individual class changes will be kept.
-            </Text>
-            {events
-              .filter((e) => e.course_id === course.id && e.recurrence)
-              .map((e) => (
-                <Text key={e.id} muted style={{ fontSize: 12 }}>
-                  Previously: {e.recurrence!.start_date} –{" "}
-                  {e.recurrence!.end_date} ·{" "}
-                  {e.recurrence!.timezone.replaceAll("_", " ")}
-                </Text>
-              ))}
+    <>
+      <Sheet
+        visible
+        title={course ? "Edit course" : "New course"}
+        onClose={guard.requestClose}
+        action={
+          <Button
+            compact
+            label={course ? "Save course" : "Create course"}
+            onPress={() => {
+              void save();
+            }}
+            busy={busy}
+          >
+            {course ? "Save" : "Create"}
+          </Button>
+        }
+      >
+        <View style={{ gap: 10 }}>
+          <Text style={{ fontSize: 13, fontWeight: "600" }}>Semester</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+            {semesters.map((s) => (
+              <Chip
+                key={s.id}
+                selected={s.id === draft.semester_id}
+                onPress={() => patch({ semester_id: s.id })}
+              >
+                {s.name}
+              </Chip>
+            ))}
           </View>
-        ) : null}
-        {semester && semester.timezone !== preferences.timezone ? (
-          <Text muted style={{ fontSize: 12 }}>
-            Class times are entered in the semester timezone. Your schedule
-            displays in your device timezone.
+          <Button
+            variant="ghost"
+            icon="plus"
+            onPress={() => setCreatingSemester(true)}
+          >
+            New semester
+          </Button>
+          {course &&
+          course.semester_id !== draft.semester_id &&
+          events.some((e) => e.course_id === course.id && e.recurrence) ? (
+            <View style={{ gap: 8 }}>
+              <Text muted style={{ fontSize: 12 }}>
+                New: {semester?.name} · {semester?.start_date} –{" "}
+                {semester?.end_date}
+              </Text>
+              <Text muted style={{ fontSize: 13 }}>
+                Saving applies this semester’s teaching dates and timezone to
+                existing regular classes. Individual class changes will be kept.
+              </Text>
+              {events
+                .filter((e) => e.course_id === course.id && e.recurrence)
+                .map((e) => (
+                  <Text key={e.id} muted style={{ fontSize: 12 }}>
+                    Previously: {e.recurrence!.start_date} –{" "}
+                    {e.recurrence!.end_date} ·{" "}
+                    {e.recurrence!.timezone.replaceAll("_", " ")}
+                  </Text>
+                ))}
+            </View>
+          ) : null}
+        </View>
+        <Field
+          label="Course name"
+          placeholder="e.g. Data Structures"
+          value={draft.name}
+          onChangeText={(name) => patch({ name })}
+          maxLength={120}
+        />
+        <FormRow>
+          <Field
+            label="Course code"
+            placeholder="CMPT 225"
+            value={draft.code}
+            onChangeText={(code) => patch({ code })}
+          />
+          <Field
+            label="Professor"
+            placeholder="Optional"
+            value={draft.professor}
+            onChangeText={(professor) => patch({ professor })}
+          />
+        </FormRow>
+        <Field
+          label="Course website"
+          placeholder="https://"
+          autoCapitalize="none"
+          keyboardType="url"
+          value={draft.website}
+          onChangeText={(website) => patch({ website })}
+        />
+        <View style={{ gap: 12 }}>
+          <Text style={{ fontSize: 13, fontWeight: "600" }}>Color</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+            {COURSE_COLORS.map((color) => (
+              <Pressable
+                key={color}
+                accessibilityRole="button"
+                accessibilityLabel={`Course color ${color}`}
+                accessibilityState={{ selected: draft.color === color }}
+                onPress={() => patch({ color })}
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 21,
+                  backgroundColor: color,
+                  justifyContent: "center",
+                  alignItems: "center",
+                  borderWidth: draft.color === color ? 3 : 0,
+                  borderColor: t.text,
+                }}
+              >
+                {draft.color === color ? (
+                  <Icon name="check" color="#FFFFFF" size={20} />
+                ) : null}
+              </Pressable>
+            ))}
+          </View>
+        </View>
+        <View style={{ gap: 12 }}>
+          <Text style={{ fontSize: 13, fontWeight: "600" }}>Icon</Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+            {COURSE_ICONS.map((icon) => (
+              <Pressable
+                key={icon}
+                accessibilityRole="button"
+                accessibilityLabel={`Choose ${icon} icon`}
+                accessibilityState={{ selected: draft.icon === icon }}
+                onPress={() => patch({ icon })}
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderWidth: 1,
+                  borderColor: draft.icon === icon ? draft.color : t.border,
+                  backgroundColor: t.surface,
+                  borderRadius: 12,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Icon
+                  name={icon}
+                  color={draft.icon === icon ? draft.color : t.muted}
+                />
+              </Pressable>
+            ))}
+          </View>
+        </View>
+        {error ? (
+          <Text
+            accessibilityRole="alert"
+            style={{ color: t.danger, fontSize: 14 }}
+          >
+            {error}
           </Text>
         ) : null}
-      </View>
-      <Field
-        label="Course name"
-        placeholder="e.g. Data Structures"
-        value={draft.name}
-        onChangeText={(name) => patch({ name })}
-        autoFocus
-        maxLength={120}
-      />
-      <View style={formRow}>
-        <Field
-          label="Course code"
-          placeholder="CMPT 225"
-          value={draft.code}
-          onChangeText={(code) => patch({ code })}
-        />
-        <Field
-          label="Professor"
-          placeholder="Optional"
-          value={draft.professor}
-          onChangeText={(professor) => patch({ professor })}
-        />
-      </View>
-      <Field
-        label="Course website"
-        placeholder="https://"
-        autoCapitalize="none"
-        keyboardType="url"
-        value={draft.website}
-        onChangeText={(website) => patch({ website })}
-      />
-      <View style={{ gap: 12 }}>
-        <Text style={{ fontSize: 13, fontWeight: "600" }}>Color</Text>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
-          {COURSE_COLORS.map((color) => (
-            <Pressable
-              key={color}
-              accessibilityRole="button"
-              accessibilityLabel={`Course color ${color}`}
-              accessibilityState={{ selected: draft.color === color }}
-              onPress={() => patch({ color })}
-              style={{
-                width: 42,
-                height: 42,
-                borderRadius: 21,
-                backgroundColor: color,
-                justifyContent: "center",
-                alignItems: "center",
-                borderWidth: draft.color === color ? 3 : 0,
-                borderColor: t.text,
-              }}
-            >
-              {draft.color === color ? (
-                <Icon name="check" color="#FFFFFF" size={20} />
-              ) : null}
-            </Pressable>
-          ))}
-        </View>
-      </View>
-      <View style={{ gap: 12 }}>
-        <Text style={{ fontSize: 13, fontWeight: "600" }}>Icon</Text>
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-          {COURSE_ICONS.map((icon) => (
-            <Pressable
-              key={icon}
-              accessibilityRole="button"
-              accessibilityLabel={`Choose ${icon} icon`}
-              accessibilityState={{ selected: draft.icon === icon }}
-              onPress={() => patch({ icon })}
-              style={{
-                width: 48,
-                height: 48,
-                borderWidth: 1,
-                borderColor: draft.icon === icon ? draft.color : t.border,
-                backgroundColor: t.surface,
-                borderRadius: 12,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Icon
-                name={icon}
-                color={draft.icon === icon ? draft.color : t.muted}
-              />
-            </Pressable>
-          ))}
-        </View>
-      </View>
-      {!course ? (
-        <Text muted style={{ fontSize: 13 }}>
-          You can add your weekly classes after creating the course.
-        </Text>
-      ) : null}
-      {error ? (
-        <Text
-          accessibilityRole="alert"
-          style={{ color: t.danger, fontSize: 14 }}
-        >
-          {error}
-        </Text>
-      ) : null}
-    </Sheet>
+      </Sheet>
+      {guard.confirmation}
+    </>
   );
 }

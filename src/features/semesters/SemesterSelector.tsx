@@ -1,14 +1,22 @@
 import { useState } from "react";
-import { View } from "react-native";
+import { Pressable, View, useWindowDimensions } from "react-native";
 import { format, parseISO } from "date-fns";
 import { Semester } from "../../domain/model";
 import { semesterStatus } from "../../domain/semesters";
 import { useWorkspace } from "../../providers/WorkspaceProvider";
-import { Button, Chip, IconButton, Sheet, Text } from "../../ui/primitives";
+import {
+  Button,
+  Chip,
+  Icon,
+  IconButton,
+  Sheet,
+  Text,
+} from "../../ui/primitives";
 import { SemesterEditor } from "./SemesterEditor";
 
-export function SemesterSelector() {
+export function SemesterSelector({ compact = false }: { compact?: boolean }) {
   const w = useWorkspace();
+  const { width } = useWindowDimensions();
   const [open, setOpen] = useState(false);
   const [editor, setEditor] = useState<Semester | "new" | null>(null);
   if (editor)
@@ -24,13 +32,39 @@ export function SemesterSelector() {
   return (
     <>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-        <Button
-          variant="ghost"
-          icon="calendar-range"
-          onPress={() => setOpen(true)}
-        >
-          {w.selectedSemester?.name || "Semesters"}
-        </Button>
+        {compact ? (
+          <Pressable
+            testID="semester-selector"
+            accessibilityRole="button"
+            accessibilityLabel={w.selectedSemester?.name || "Semesters"}
+            onPress={() => setOpen(true)}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 5,
+              minHeight: 44,
+              maxWidth: width < 360 ? 104 : 132,
+            }}
+          >
+            <Icon name="calendar-range" size={17} />
+            <Text
+              numberOfLines={1}
+              muted
+              style={{ fontSize: 12, flexShrink: 1 }}
+            >
+              {w.selectedSemester?.name || "Semesters"}
+            </Text>
+            <Icon name="chevron-down" size={15} />
+          </Pressable>
+        ) : (
+          <Button
+            variant="ghost"
+            icon="calendar-range"
+            onPress={() => setOpen(true)}
+          >
+            {w.selectedSemester?.name || "Semesters"}
+          </Button>
+        )}
       </View>
       {open ? (
         <Sheet visible title="Semesters" onClose={() => setOpen(false)}>

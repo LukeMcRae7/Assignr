@@ -1,4 +1,12 @@
-import { ComponentProps, PropsWithChildren, ReactNode } from "react";
+import {
+  Children,
+  ComponentProps,
+  PropsWithChildren,
+  ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -15,10 +23,11 @@ import {
   ViewStyle,
   useWindowDimensions,
   KeyboardAvoidingView,
+  Keyboard,
 } from "react-native";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useTheme } from "./theme";
+import { controls, useTheme } from "./theme";
 
 export type IconName = ComponentProps<typeof MaterialCommunityIcons>["name"];
 export function Icon({
@@ -107,12 +116,16 @@ export function Button({
   icon,
   disabled,
   busy,
+  compact = false,
+  label,
 }: PropsWithChildren<{
   onPress(): void;
   variant?: "primary" | "secondary" | "danger" | "ghost";
   icon?: string;
   disabled?: boolean;
   busy?: boolean;
+  compact?: boolean;
+  label?: string;
 }>) {
   const t = useTheme();
   const color =
@@ -124,13 +137,18 @@ export function Button({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={label}
       disabled={disabled || busy}
       onPress={onPress}
       style={({ pressed }) => ({
-        minHeight: 48,
-        borderRadius: 12,
-        paddingHorizontal: 20,
-        paddingVertical: 12,
+        minHeight:
+          compact && Platform.OS === "web"
+            ? controls.desktopHeight
+            : controls.height,
+        flexShrink: 0,
+        borderRadius: controls.radius,
+        paddingHorizontal: compact ? 12 : 16,
+        paddingVertical: compact ? 6 : 10,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
@@ -157,27 +175,56 @@ export function Field({
   label,
   hint,
   style,
+  hideLabel = false,
+  prominent = false,
   ...props
-}: TextInputProps & { label: string; hint?: string }) {
+}: TextInputProps & {
+  label: string;
+  hint?: string;
+  hideLabel?: boolean;
+  prominent?: boolean;
+}) {
   const t = useTheme();
+  const [focused, setFocused] = useState(false);
   return (
-    <View style={{ gap: 7, flexGrow: 1, flexBasis: 0, minWidth: 100 }}>
-      <Text style={{ fontSize: 13, fontWeight: "600" }}>{label}</Text>
+    <View testID="form-field" style={{ gap: 6, flexShrink: 0, minWidth: 0 }}>
+      {!hideLabel ? (
+        <Text muted style={{ fontSize: 12, fontWeight: "500" }}>
+          {label}
+        </Text>
+      ) : null}
       <TextInput
         {...props}
         accessibilityLabel={label}
         placeholderTextColor={t.muted}
         selectionColor={t.accent}
+        onFocus={(e) => {
+          setFocused(true);
+          props.onFocus?.(e);
+        }}
+        onBlur={(e) => {
+          setFocused(false);
+          props.onBlur?.(e);
+        }}
+        underlineColorAndroid="transparent"
         style={[
           {
             borderWidth: 1,
-            borderColor: t.border,
-            borderRadius: 10,
+            borderColor: prominent
+              ? "transparent"
+              : focused
+                ? t.accent
+                : "transparent",
+            borderRadius: controls.radius,
             color: t.text,
-            backgroundColor: t.surface,
-            minHeight: 48,
-            padding: 12,
-            fontSize: 16,
+            backgroundColor: prominent ? "transparent" : t.surface,
+            minHeight: controls.height,
+            padding: prominent ? 0 : 11,
+            fontSize: prominent ? 25 : 15,
+            fontWeight: prominent ? "600" : "400",
+            ...(Platform.OS === "web"
+              ? { outlineWidth: 0, outlineStyle: "solid" as const }
+              : {}),
           },
           style,
         ]}
@@ -195,26 +242,30 @@ export function Chip({
   selected,
   onPress,
   color,
+  label,
 }: PropsWithChildren<{
   selected?: boolean;
   onPress?(): void;
   color?: string;
+  label?: string;
 }>) {
   const t = useTheme();
   return (
     <Pressable
       accessibilityRole={onPress ? "button" : undefined}
+      accessibilityLabel={label}
       accessibilityState={{ selected }}
       aria-pressed={selected}
       onPress={onPress}
       style={{
         borderWidth: 1,
-        borderColor: selected ? color || t.accent : t.border,
+        borderColor: selected ? color || t.accent : "transparent",
         backgroundColor: selected ? t.elevated : "transparent",
-        paddingHorizontal: 13,
-        paddingVertical: 9,
-        borderRadius: 20,
+        paddingHorizontal: 11,
+        paddingVertical: 7,
+        borderRadius: 9,
         minHeight: 40,
+        flexShrink: 0,
         justifyContent: "center",
       }}
     >
@@ -280,73 +331,111 @@ export function Screen({
   children,
   floating,
   refresh,
+  aside,
 }: PropsWithChildren<{
   title: string;
   subtitle?: string;
   actions?: ReactNode;
   floating?: ReactNode;
   refresh?: ReactNode;
+  aside?: ReactNode;
 }>) {
   const t = useTheme();
   const { width } = useWindowDimensions();
+  const split = width >= 1100 && !!aside;
   return (
     <SafeAreaView
       edges={["top", "left", "right"]}
       style={{ flex: 1, backgroundColor: t.background }}
     >
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{
-          padding: width >= 900 ? 40 : 20,
-          paddingBottom: 110,
-          flexGrow: 1,
+      <View
+        testID="screen-header"
+        style={{
+          width: "100%",
+          maxWidth: split ? undefined : 1114,
+          alignSelf: "center",
+          paddingHorizontal: width >= 900 ? 32 : 20,
+          paddingTop: 16,
+          paddingBottom: 20,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          flexShrink: 0,
         }}
       >
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text
+            accessibilityRole="header"
+            numberOfLines={1}
+            style={{
+              fontSize: width >= 900 ? 34 : width < 360 ? 28 : 32,
+              lineHeight: 44,
+              fontWeight: "700",
+              letterSpacing: -0.8,
+            }}
+          >
+            {title}
+          </Text>
+          {subtitle ? (
+            <Text muted style={{ fontSize: 13 }}>
+              {subtitle}
+            </Text>
+          ) : null}
+        </View>
         <View
           style={{
-            width: "100%",
-            maxWidth: 1050,
-            alignSelf: "center",
-            gap: 28,
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 3,
+            flexShrink: 0,
+          }}
+        >
+          {actions}
+        </View>
+      </View>
+      <View style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
+        <ScrollView
+          style={{ flex: 1, minWidth: 0 }}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          contentContainerStyle={{
+            paddingHorizontal: width >= 900 ? 32 : 20,
+            paddingBottom: 100,
+            flexGrow: 1,
           }}
         >
           <View
             style={{
-              flexDirection: "row",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: 8,
-              paddingTop: 12,
+              width: "100%",
+              maxWidth: 1050,
+              alignSelf: "center",
+              gap: 24,
             }}
           >
-            <View style={{ flex: 1 }}>
-              <Text
-                accessibilityRole="header"
-                style={{
-                  fontSize: width >= 900 ? 38 : 32,
-                  lineHeight: 46,
-                  fontWeight: "700",
-                  letterSpacing: -1,
-                }}
-              >
-                {title}
-              </Text>
-              {subtitle ? (
-                <Text muted style={{ marginTop: 4, fontSize: 14 }}>
-                  {subtitle}
-                </Text>
-              ) : null}
-            </View>
-            <View
-              style={{ flexDirection: "row", alignItems: "center", gap: 3 }}
-            >
-              {actions}
-            </View>
+            {refresh}
+            {children}
           </View>
-          {refresh}
-          {children}
-        </View>
-      </ScrollView>
+        </ScrollView>
+        {aside ? (
+          <View
+            testID="screen-aside"
+            style={
+              split
+                ? {
+                    width: 400,
+                    minHeight: 0,
+                    marginRight: 24,
+                    marginLeft: 8,
+                    paddingBottom: 24,
+                  }
+                : { position: "absolute", width: 0, height: 0 }
+            }
+          >
+            {aside}
+          </View>
+        ) : null}
+      </View>
       {floating ? (
         <View style={{ position: "absolute", right: 24, bottom: 24 }}>
           {floating}
@@ -437,34 +526,207 @@ export function EmptyState({
     </View>
   );
 }
+export type FormPresentation = "dialog" | "panel" | "inline";
 export function Sheet({
   visible,
   title,
   onClose,
   children,
   footer,
+  action,
+  error,
+  presentation = "dialog",
+  large = false,
 }: PropsWithChildren<{
   visible: boolean;
   title: string;
   onClose(): void;
   footer?: ReactNode;
+  action?: ReactNode;
+  error?: string;
+  presentation?: FormPresentation;
+  large?: boolean;
 }>) {
   const t = useTheme();
-  const { width } = useWindowDimensions();
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
+  const { width, height } = useWindowDimensions();
+  const frame = useRef<View>(null);
+  const closeRef = useRef(onClose);
+  useEffect(() => {
+    closeRef.current = onClose;
+  }, [onClose]);
+  const inline = presentation === "inline" && width >= 1100;
+  const side = presentation === "panel" && width >= 1100;
+  const mobile = width < 700;
+  useEffect(() => {
+    if (!visible || Platform.OS !== "web") return;
+    const previous = document.activeElement as HTMLElement | null;
+    const root = frame.current as unknown as HTMLElement | null;
+    const timer = setTimeout(
+      () =>
+        !inline &&
+        root
+          ?.querySelector<HTMLElement>(
+            mobile ? '[role="button"]' : 'input,textarea,button,[tabindex="0"]',
+          )
+          ?.focus(),
+      0,
+    );
+    const key = (event: KeyboardEvent) => {
+      if (inline) {
+        if (event.key === "Escape" && root?.contains(document.activeElement)) {
+          event.preventDefault();
+          closeRef.current();
+        }
+        return;
+      }
+      const dialogs = document.querySelectorAll('[role="dialog"]');
+      if (dialogs[dialogs.length - 1] !== root) return;
+      if (event.key === "Tab" && root) {
+        const elements = Array.from(
+          root.querySelectorAll<HTMLElement>(
+            'input,textarea,button,[tabindex="0"]',
+          ),
+        ).filter(
+          (el) =>
+            el.getAttribute("aria-disabled") !== "true" &&
+            !el.hasAttribute("disabled") &&
+            el.getBoundingClientRect().height > 0,
+        );
+        const first = elements[0],
+          last = elements.at(-1);
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", key);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("keydown", key);
+      if (previous?.isConnected) previous.focus();
+    };
+  }, [visible, inline, mobile]);
+  if (!visible) return null;
+  const content = (
+    <SafeAreaView
+      ref={frame}
+      role={inline ? undefined : "dialog"}
+      aria-modal={!inline || undefined}
+      accessibilityLabel={title}
+      accessibilityViewIsModal={!inline}
+      edges={mobile ? ["bottom"] : []}
+      testID="form-surface"
+      style={{
+        backgroundColor: t.background,
+        width: "100%",
+        maxWidth: inline || side ? undefined : large ? 640 : 540,
+        maxHeight: height - (mobile ? 44 : 64),
+        height:
+          (large && mobile) || inline || side
+            ? height - (inline ? 156 : mobile ? 44 : 64)
+            : undefined,
+        borderRadius: inline ? 14 : side ? 0 : 18,
+        overflow: "hidden",
+        borderWidth: mobile ? 0 : 1,
+        borderColor: t.border,
+        flexShrink: 1,
+        minHeight: 0,
+      }}
     >
+      <View
+        testID="form-header"
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          paddingHorizontal: 16,
+          paddingVertical: 10,
+          gap: 8,
+          flexShrink: 0,
+          borderBottomWidth: 1,
+          borderColor: t.border,
+        }}
+      >
+        <Text
+          accessibilityRole="header"
+          numberOfLines={1}
+          style={{ fontSize: 16, fontWeight: "600", flex: 1 }}
+        >
+          {title}
+        </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+          {action}
+          <IconButton icon="close" label="Close" onPress={onClose} />
+        </View>
+      </View>
+      {error ? (
+        <Text
+          accessibilityRole="alert"
+          style={{
+            color: t.danger,
+            fontSize: 13,
+            paddingHorizontal: 20,
+            paddingVertical: 8,
+            flexShrink: 0,
+          }}
+        >
+          {error}
+        </Text>
+      ) : null}
+      <ScrollView
+        testID="form-body"
+        style={{
+          flexShrink: 1,
+          flexGrow: (large && mobile) || inline || side ? 1 : 0,
+          minHeight: 0,
+        }}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+        onTouchStart={(e) => {
+          if (e.target === e.currentTarget) Keyboard.dismiss();
+        }}
+        contentContainerStyle={{ padding: 20, flexGrow: 0 }}
+      >
+        <View
+          onTouchStart={(e) => {
+            if (e.target === e.currentTarget) Keyboard.dismiss();
+          }}
+          style={{ gap: controls.formGap, flexShrink: 0 }}
+        >
+          {children}
+        </View>
+      </ScrollView>
+      {footer ? (
+        <View
+          style={{
+            padding: 12,
+            flexDirection: "row",
+            justifyContent: "flex-end",
+            flexShrink: 0,
+            borderTopWidth: 1,
+            borderColor: t.border,
+          }}
+        >
+          {footer}
+        </View>
+      ) : null}
+    </SafeAreaView>
+  );
+  if (inline) return content;
+  return (
+    <Modal visible transparent animationType="none" onRequestClose={onClose}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{
           flex: 1,
-          backgroundColor: "#00000080",
-          justifyContent: width >= 700 ? "center" : "flex-end",
-          alignItems: "center",
+          backgroundColor: "#00000060",
+          justifyContent: mobile ? "flex-end" : "center",
+          alignItems: side ? "flex-end" : "center",
+          padding: mobile || side ? 0 : 24,
         }}
       >
         <Pressable
@@ -472,53 +734,20 @@ export function Sheet({
           onPress={onClose}
           style={StyleSheet.absoluteFill}
         />
-        <SafeAreaView
-          edges={["bottom"]}
-          style={{
-            backgroundColor: t.background,
-            width: "100%",
-            maxWidth: 620,
-            maxHeight: "94%",
-            borderRadius: width >= 700 ? 22 : 22,
-            overflow: "hidden",
-            borderWidth: 1,
-            borderColor: t.border,
-          }}
-        >
+        {side ? (
           <View
             style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "space-between",
-              paddingLeft: 24,
-              paddingRight: 12,
-              paddingVertical: 14,
-              borderBottomWidth: 1,
-              borderColor: t.border,
+              width: 460,
+              maxWidth: "100%",
+              height: "100%",
+              justifyContent: "center",
             }}
           >
-            <Text
-              accessibilityRole="header"
-              style={{ fontSize: 22, fontWeight: "600" }}
-            >
-              {title}
-            </Text>
-            <IconButton icon="close" label="Close" onPress={onClose} />
+            {content}
           </View>
-          <ScrollView
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ padding: 24, gap: 22 }}
-          >
-            {children}
-          </ScrollView>
-          {footer ? (
-            <View
-              style={{ padding: 20, borderTopWidth: 1, borderColor: t.border }}
-            >
-              {footer}
-            </View>
-          ) : null}
-        </SafeAreaView>
+        ) : (
+          content
+        )}
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -553,4 +782,15 @@ export const formRow: ViewStyle = {
   gap: 12,
   alignItems: "flex-start",
 };
+export function FormRow({ children }: PropsWithChildren) {
+  return (
+    <View testID="form-row" style={formRow}>
+      {Children.toArray(children).map((child, index) => (
+        <View key={index} style={{ flex: 1, minWidth: 0 }}>
+          {child}
+        </View>
+      ))}
+    </View>
+  );
+}
 export const errorStyle: TextStyle = { fontSize: 14, lineHeight: 20 };

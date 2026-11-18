@@ -1,6 +1,7 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { EventEditor } from "../../features/events/EventEditor";
 import { EVENT_KINDS, EventKind } from "../../domain/model";
+import { EventContext } from "../../domain/eventEditor";
 export default function NewEventRoute() {
   const params = useLocalSearchParams<{
     kind?: string;
@@ -8,10 +9,18 @@ export default function NewEventRoute() {
     date?: string;
     parentId?: string;
     originalDate?: string;
+    context?: string;
   }>();
   return (
     <EventEditor
       {...params}
+      context={
+        ["assignments", "assessments", "classes", "general"].includes(
+          params.context || "",
+        )
+          ? (params.context as EventContext)
+          : undefined
+      }
       kind={
         EVENT_KINDS.includes(params.kind as EventKind)
           ? (params.kind as EventKind)
