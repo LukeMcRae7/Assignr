@@ -251,6 +251,36 @@ function useCreateWorkspace(userId: string) {
       },
     ]);
   }
+  async function changeEventTime(
+    id: string,
+    field: "due_at" | "starts_at" | "ends_at",
+    time: string,
+  ) {
+    await store.commit((snapshot) => {
+      const event = snapshot.events.find((e) => e.id === id && !e.deleted_at);
+      const previous = event?.[field];
+      if (
+        !event ||
+        !previous ||
+        event.recurrence ||
+        displayTime(previous, timezone, true) === time
+      )
+        return [];
+      const value = zonedISO(
+        dayKey(new Date(previous), timezone),
+        time,
+        timezone,
+      );
+      const record = { ...event, [field]: value };
+      if (field === "starts_at" && event.ends_at) {
+        const duration = Date.parse(event.ends_at) - Date.parse(previous);
+        record.ends_at = new Date(Date.parse(value) + duration).toISOString();
+      }
+      const error = validateEvent(record);
+      if (error) throw new Error(error);
+      return [{ table: "events", record }];
+    });
+  }
   async function changeDueDate(id: string, date: string) {
     if (!isDate(date)) throw new Error("Choose a valid due date.");
     await store.commit((snapshot) => {
@@ -322,6 +352,7 @@ function useCreateWorkspace(userId: string) {
     skipOccurrence,
     updatePreferences,
     changeDueDate,
+    changeEventTime,
     toggleAssignment,
     toggleSubtask,
     perform,

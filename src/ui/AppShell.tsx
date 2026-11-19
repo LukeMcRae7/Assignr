@@ -127,8 +127,11 @@ export function AppShell() {
                     minHeight: 46,
                     paddingHorizontal: wide && !rail ? 14 : 0,
                     borderRadius: 10,
-                    backgroundColor:
-                      wide && selected ? t.elevated : "transparent",
+                    backgroundColor: selected
+                      ? wide
+                        ? t.elevated
+                        : blend(t.accent, t.background, 0.16)
+                      : "transparent",
                   }}
                 >
                   <View
@@ -138,10 +141,6 @@ export function AppShell() {
                       borderRadius: 12,
                       alignItems: "center",
                       justifyContent: "center",
-                      backgroundColor:
-                        !wide && selected
-                          ? blend(t.accent, t.background, 0.16)
-                          : "transparent",
                     }}
                   >
                     <Icon

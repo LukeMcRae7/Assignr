@@ -7,6 +7,7 @@ import { typeLabel } from "../../domain/eventEditor";
 import { subtaskProgress } from "../../domain/schedule";
 import { useWorkspace } from "../../providers/WorkspaceProvider";
 import { DateTimeField } from "../../ui/DateTimeField";
+import { AssignmentTitle } from "./AssignmentTitle";
 import { Disclosure } from "../../ui/Disclosure";
 import { Icon, Text } from "../../ui/primitives";
 import { blend, useTheme } from "../../ui/theme";
@@ -55,7 +56,7 @@ export function AssignmentRow({
           flexDirection: "row",
           alignItems: "center",
           gap: 6,
-          paddingVertical: 5,
+          paddingVertical: 2,
         }}
       >
         <Pressable
@@ -97,65 +98,64 @@ export function AssignmentRow({
             onPress={() => router.push(`/event/${event.id}`)}
             style={{ gap: 3, minHeight: 32, justifyContent: "center" }}
           >
-            <Text
-              style={{
-                fontWeight: "500",
-                textDecorationLine: event.completed ? "line-through" : "none",
-                color: event.completed ? t.muted : t.text,
-              }}
-            >
-              {event.title}
-            </Text>
+            <AssignmentTitle title={event.title} completed={event.completed} />
             {showCourse ? (
-              <Text muted style={{ fontSize: 12, lineHeight: 18 }}>
+              <Text
+                muted
+                numberOfLines={1}
+                style={{ fontSize: 12, lineHeight: 16 }}
+              >
                 {course?.name || "Personal"}
               </Text>
             ) : null}
           </Pressable>
-          {event.subtasks.length ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={"Subtasks for " + event.title}
-              aria-expanded={expanded}
-              onPress={() => setExpanded(!expanded)}
-              style={{
-                minHeight: 32,
-                flexDirection: "row",
-                alignItems: "center",
-                alignSelf: "flex-start",
-                gap: 6,
-                paddingRight: 8,
-              }}
-            >
-              <Icon
-                size={16}
-                color={t.muted}
-                name={expanded ? "chevron-down" : "chevron-right"}
-              />
+        </View>
+        {event.subtasks.length ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={"Subtasks for " + event.title}
+            aria-expanded={expanded}
+            onPress={() => setExpanded(!expanded)}
+            style={{
+              minHeight: 44,
+              justifyContent: "center",
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 1,
+            }}
+          >
+            <Icon
+              size={16}
+              color={t.muted}
+              name={expanded ? "chevron-down" : "chevron-right"}
+            />
+            <View style={{ gap: 2, minWidth: 20 }}>
+              <Text
+                muted
+                style={{ fontSize: 11, lineHeight: 14, textAlign: "center" }}
+              >
+                {event.subtasks.filter((s) => s.completed).length}/
+                {event.subtasks.length}
+              </Text>
               <View
                 style={{
-                  height: 4,
+                  height: 3,
+                  borderRadius: 2,
                   backgroundColor: t.elevated,
-                  width: 54,
-                  borderRadius: 3,
                   overflow: "hidden",
                 }}
               >
                 <View
                   style={{
-                    height: "100%",
+                    height: 3,
                     width: `${progress * 100}%`,
                     backgroundColor: course?.color || t.accent,
                   }}
                 />
               </View>
-              <Text muted style={{ fontSize: 11, lineHeight: 16 }}>
-                {event.subtasks.filter((s) => s.completed).length}/
-                {event.subtasks.length}
-              </Text>
-            </Pressable>
-          ) : null}
-        </View>
+            </View>
+          </Pressable>
+        ) : null}
         <View style={{ alignItems: "flex-end", gap: 0 }}>
           {event.priority ? (
             <Icon
@@ -177,7 +177,9 @@ export function AssignmentRow({
               label={"Change due date for " + event.title}
               value={dayKey(new Date(event.due_at), p.timezone)}
               displayLabel={
-                dueToday ? "Today" : displayDate(event.due_at, p.timezone)
+                dueToday
+                  ? displayTime(event.due_at, p.timezone, p.hour24)
+                  : displayDate(event.due_at, p.timezone)
               }
               color={overdue ? t.danger : t.muted}
               onChangeText={(date) =>
@@ -185,11 +187,6 @@ export function AssignmentRow({
               }
             />
           )}
-          {dueToday && event.due_at ? (
-            <Text muted style={{ fontSize: 11, lineHeight: 16 }}>
-              {displayTime(event.due_at, p.timezone, p.hour24)}
-            </Text>
-          ) : null}
         </View>
       </View>
       {event.subtasks.length ? (
@@ -262,6 +259,13 @@ export function EventRow({
   const course = courses.find((c) => c.id === event.course_id);
   const significant = event.kind === "exam" && p.highlight_exams && highlight;
   const color = significant ? t.danger : course?.color || t.accent;
+  const lecture = event.kind === "lecture" && !event.custom_type;
+  const title = lecture && course ? course.name : event.title;
+  const subtitle = lecture
+    ? course && event.title !== typeLabel(event)
+      ? event.title
+      : undefined
+    : course?.name;
   const time = occurrence.starts_at
     ? `${displayTime(occurrence.starts_at, p.timezone, p.hour24)} – ${displayTime(occurrence.ends_at!, p.timezone, p.hour24)}`
     : occurrence.due_at
@@ -321,21 +325,24 @@ export function EventRow({
             style={{ fontWeight: "600", fontSize: 17, flexShrink: 1 }}
             numberOfLines={2}
           >
-            {course && event.title.toLowerCase() !== course.name.toLowerCase()
-              ? `${course.name} · ${event.title}`
-              : event.title}
+            {title}
           </Text>
         </View>
+        {subtitle && subtitle !== title ? (
+          <Text muted numberOfLines={1} style={{ fontSize: 13 }}>
+            {subtitle}
+          </Text>
+        ) : null}
         <Text muted style={{ fontSize: 14 }}>
           {time}
           {event.location ? ` · ${event.location}` : ""}
         </Text>
-        {significant || event.kind === "quiz" ? (
+        {event.kind === "exam" || event.kind === "quiz" || lecture ? (
           <Text
             style={{
               fontSize: 11,
               lineHeight: 16,
-              color,
+              color: lecture ? t.muted : color,
               fontWeight: "600",
               textTransform: "uppercase",
               letterSpacing: 0.8,

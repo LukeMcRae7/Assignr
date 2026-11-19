@@ -8,6 +8,7 @@ import {
   Field,
   FormRow,
   Icon,
+  IconButton,
   Sheet,
   Text,
 } from "../../ui/primitives";
@@ -110,14 +111,12 @@ export function CourseEditor({
                 {s.name}
               </Chip>
             ))}
+            <IconButton
+              icon="plus"
+              label="New semester"
+              onPress={() => setCreatingSemester(true)}
+            />
           </View>
-          <Button
-            variant="ghost"
-            icon="plus"
-            onPress={() => setCreatingSemester(true)}
-          >
-            New semester
-          </Button>
           {course &&
           course.semester_id !== draft.semester_id &&
           events.some((e) => e.course_id === course.id && e.recurrence) ? (

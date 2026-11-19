@@ -64,9 +64,6 @@ test("course, classes, assignment, and in-class exam stay consistent", async ({
   await page.getByRole("link", { name: "Today", exact: true }).click();
   await page.getByRole("button", { name: "Open Lecture", exact: true }).click();
   await page
-    .getByRole("button", { name: "More event actions", exact: true })
-    .click();
-  await page
     .getByRole("button", { name: "Add in-class exam or quiz", exact: true })
     .click();
   await page.getByLabel("Title", { exact: true }).fill("Midterm");

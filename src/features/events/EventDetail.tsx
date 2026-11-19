@@ -42,8 +42,8 @@ export function EventDetail({
   const [edit, setEdit] = useState(false),
     [reschedule, setReschedule] = useState(false),
     [replacement, setReplacement] = useState(false);
-  const [menu, setMenu] = useState(false),
-    [confirm, setConfirm] = useState(false),
+  const [timeError, setTimeError] = useState("");
+  const [confirm, setConfirm] = useState(false),
     [changes, setChanges] = useState(false);
   const event = w.events.find((e) => e.id === id);
   const close = () => {
@@ -132,71 +132,6 @@ export function EventDetail({
     event.ends_at &&
     displayDate(point, p.timezone, "yyyy-MM-dd") !==
       displayDate(event.ends_at, p.timezone, "yyyy-MM-dd");
-  if (menu)
-    return (
-      <Sheet
-        visible
-        title="Event actions"
-        presentation={presentation}
-        onClose={() => setMenu(false)}
-      >
-        {occurrence ? (
-          <>
-            <Button
-              compact
-              variant="ghost"
-              icon="clipboard-check-outline"
-              onPress={() => {
-                setMenu(false);
-                onEditingChange?.(true);
-                setReplacement(true);
-              }}
-            >
-              Add in-class exam or quiz
-            </Button>
-            <Button
-              compact
-              variant="ghost"
-              icon="calendar-edit"
-              onPress={() => {
-                setMenu(false);
-                onEditingChange?.(true);
-                setReschedule(true);
-              }}
-            >
-              Reschedule this class
-            </Button>
-            <Button
-              compact
-              variant="ghost"
-              onPress={() =>
-                void w.perform(async () => {
-                  await w.skipOccurrence(occurrence);
-                  close();
-                })
-              }
-            >
-              Skip this class
-            </Button>
-          </>
-        ) : null}
-        <Button
-          compact
-          variant="danger"
-          icon="trash-can-outline"
-          onPress={() => {
-            setMenu(false);
-            setConfirm(true);
-          }}
-        >
-          {event.recurrence
-            ? "Delete weekly class"
-            : event.parent_event_id
-              ? "Remove replacement"
-              : "Delete event"}
-        </Button>
-      </Sheet>
-    );
   if (confirm)
     return (
       <Sheet
@@ -244,9 +179,15 @@ export function EventDetail({
             Edit
           </Button>
           <IconButton
-            icon="dots-horizontal"
-            label="More event actions"
-            onPress={() => setMenu(true)}
+            icon="trash-can-outline"
+            label={
+              event.recurrence
+                ? "Delete weekly class"
+                : event.parent_event_id
+                  ? "Remove replacement"
+                  : "Delete event"
+            }
+            onPress={() => setConfirm(true)}
           />
         </View>
       }
@@ -322,22 +263,98 @@ export function EventDetail({
                 }
               />
             )}
-            <DetailRow
-              icon="clock-outline"
-              text={
-                event.due_at
-                  ? "Due " + displayTime(event.due_at, p.timezone, p.hour24)
-                  : displayTime(event.starts_at!, p.timezone, p.hour24) +
-                    " – " +
-                    displayTime(event.ends_at!, p.timezone, p.hour24)
-              }
-            />
+            <View
+              style={{
+                flexDirection: "row",
+                flexWrap: "wrap",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              {(["due_at", "starts_at", "ends_at"] as const).map((field) => {
+                const iso = event[field];
+                if (!iso) return null;
+                const label =
+                  field === "due_at"
+                    ? "Due"
+                    : field === "starts_at"
+                      ? "Start"
+                      : "End";
+                return (
+                  <DateTimeField
+                    key={field}
+                    compact
+                    mode="time"
+                    label={label + " time for " + event.title}
+                    value={displayTime(iso, p.timezone, true)}
+                    displayLabel={
+                      label + " " + displayTime(iso, p.timezone, p.hour24)
+                    }
+                    onChangeText={async (value) => {
+                      setTimeError("");
+                      try {
+                        await w.changeEventTime(event.id, field, value);
+                      } catch (error) {
+                        setTimeError(
+                          error instanceof Error
+                            ? error.message
+                            : "Couldn't update time.",
+                        );
+                      }
+                    }}
+                  />
+                );
+              })}
+            </View>
+            {timeError ? (
+              <Text accessibilityRole="alert" style={{ color: t.danger }}>
+                {timeError}
+              </Text>
+            ) : null}
           </>
         ) : null}
         {event.location ? (
           <DetailRow icon="map-marker-outline" text={event.location} />
         ) : null}
       </View>
+      {occurrence ? (
+        <>
+          <Button
+            compact
+            variant="ghost"
+            icon="clipboard-check-outline"
+            onPress={() => {
+              onEditingChange?.(true);
+              setReplacement(true);
+            }}
+          >
+            Add in-class exam or quiz
+          </Button>
+          <Button
+            compact
+            variant="ghost"
+            icon="calendar-edit"
+            onPress={() => {
+              onEditingChange?.(true);
+              setReschedule(true);
+            }}
+          >
+            Reschedule this class
+          </Button>
+          <Button
+            compact
+            variant="ghost"
+            onPress={() =>
+              void w.perform(async () => {
+                await w.skipOccurrence(occurrence);
+                close();
+              })
+            }
+          >
+            Skip this class
+          </Button>
+        </>
+      ) : null}
       {event.notes ? <Text style={{ fontSize: 14 }}>{event.notes}</Text> : null}
       {event.priority ? (
         <Text muted style={{ fontSize: 12, textTransform: "capitalize" }}>

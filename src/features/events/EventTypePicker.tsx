@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { View } from "react-native";
+import { Keyboard, Pressable, View } from "react-native";
 import { EventKind, StudyEvent } from "../../domain/model";
 import {
   categoryForKind,
@@ -8,7 +8,9 @@ import {
   kindLabels,
   usedTypes,
 } from "../../domain/eventEditor";
-import { Chip, Field } from "../../ui/primitives";
+import { Chip, Field, Text } from "../../ui/primitives";
+
+import { useTheme } from "../../ui/theme";
 
 const categories = [
   ["assignments", "Assignments", "assignment"],
@@ -33,6 +35,7 @@ export function EventTypePicker({
   select(kind: EventKind, customName?: string | null): void;
   setName(name: string): void;
 }) {
+  const t = useTheme();
   const category = categoryForKind(draft.kind);
   const existing =
     existingKind && categoryForKind(existingKind) === category
@@ -53,17 +56,42 @@ export function EventTypePicker({
   return (
     <>
       {context === "general" ? (
-        <View style={row}>
+        <View
+          style={{
+            flexDirection: "row",
+            backgroundColor: t.subtle,
+            padding: 3,
+            borderRadius: 10,
+          }}
+        >
           {categories.map(([key, label, kind]) => (
-            <Chip
+            <Pressable
               key={key}
-              selected={category === key}
+              accessibilityRole="button"
+              accessibilityState={{ selected: category === key }}
+              style={{
+                flex: 1,
+                alignItems: "center",
+                justifyContent: "center",
+                minHeight: 38,
+                borderRadius: 8,
+                backgroundColor: category === key ? t.elevated : "transparent",
+              }}
               onPress={() => {
+                Keyboard.dismiss();
                 if (key !== category) select(kind);
               }}
             >
-              {label}
-            </Chip>
+              <Text
+                muted={category !== key}
+                style={{
+                  fontSize: 13,
+                  fontWeight: category === key ? "700" : "500",
+                }}
+              >
+                {label}
+              </Text>
+            </Pressable>
           ))}
         </View>
       ) : null}

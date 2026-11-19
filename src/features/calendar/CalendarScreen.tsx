@@ -398,7 +398,11 @@ export function CalendarScreen() {
                             ),
                           }}
                         >
-                          {event.title}
+                          {event.kind === "lecture" && !event.custom_type
+                            ? courses.find(
+                                (course) => course.id === event.course_id,
+                              )?.name || event.title
+                            : event.title}
                         </Text>
                       ))}
                       {onDate.length > 2 ? (

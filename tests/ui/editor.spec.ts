@@ -1,4 +1,4 @@
-import { chooseDate } from "./pickers";
+import { chooseDate, chooseTime } from "./pickers";
 import { test, expect, Page } from "@playwright/test";
 import { defaultPreferences } from "../../src/domain/model";
 
@@ -296,6 +296,18 @@ test("calendar panel keeps context visible and preserves drafts through resizing
   await page
     .getByRole("button", { name: "Open Study session", exact: true })
     .click();
+  await chooseTime(page, "Start time for Study session", "13:00");
+  await expect(
+    page.getByRole("button", { name: "End time for Study session" }),
+  ).toContainText(/2:00 PM|14:00/);
+  await chooseTime(page, "End time for Study session", "12:30");
+  await expect(page.getByRole("alert")).toContainText(
+    "The end time must be after the start time",
+  );
+  await chooseTime(page, "End time for Study session", "14:30");
+  await expect(
+    page.getByRole("button", { name: "End time for Study session" }),
+  ).toContainText(/2:30 PM|14:30/);
   await page.getByRole("button", { name: "Edit event", exact: true }).click();
   await page.getByLabel("Title", { exact: true }).fill("Updated study session");
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
@@ -384,7 +396,6 @@ test("custom types follow their course section and last through the last event u
   await page.goto("/courses/course");
   for (const title of ["Week two", "Week one"]) {
     await button("Open " + title).click();
-    await button("More event actions").click();
     await button("Delete event").click();
     await page
       .getByRole("dialog")
@@ -394,8 +405,9 @@ test("custom types follow their course section and last through the last event u
     await button("Add assignment").click();
     await expect(button("Reading")).toHaveCount(title === "Week two" ? 1 : 0);
     await button("Close").click();
+    await expect(page).toHaveURL(/\/courses\/course$/);
   }
-  await page.goto("/calendar");
+  await page.getByRole("link", { name: "Calendar", exact: true }).click();
   await button("Calendar visibility").click();
   await expect(button("Reading")).toHaveCount(0);
 });
@@ -544,10 +556,48 @@ test("quick date changes preserve the local due time and other edits", async ({
   await expect(
     page.getByRole("heading", { name: "Reading reflection", exact: true }),
   ).toBeVisible();
+  await chooseTime(page, "Due time for Reading reflection", "14:35");
+  await expect(
+    page.getByRole("button", { name: "Due time for Reading reflection" }),
+  ).toContainText(/2:35 PM|14:35/);
+  expect((await readEvent()).subtasks).toEqual(original.subtasks);
   await page.getByRole("button", { name: "Edit event", exact: true }).click();
-  await page.getByRole("textbox", { name: "Title", exact: true }).fill("Unsaved rename");
-  const close = page.getByTestId("form-header").getByRole("button", { name: "Close", exact: true });
+  await page
+    .getByRole("textbox", { name: "Title", exact: true })
+    .fill("Unsaved rename");
+  const close = page
+    .getByTestId("form-header")
+    .getByRole("button", { name: "Close", exact: true });
   if (test.info().project.use.hasTouch) await close.tap();
   else await close.click();
-  await expect(page.getByRole("heading", { name: "Reading reflection", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Reading reflection", exact: true }),
+  ).toBeVisible();
+});
+
+test("swiping left on a course returns to the courses list", async ({
+  page,
+}, info) => {
+  test.skip(!info.project.use.hasTouch, "Touch navigation");
+  await seed(page);
+  await page.goto("/courses/course");
+  const header = page.getByRole("button", { name: "Back to courses" });
+  await expect(header).toBeVisible();
+  const box = (await header.boundingBox())!;
+  const y = box.y + box.height / 2;
+  const client = await page.context().newCDPSession(page);
+  await client.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [{ x: 280, y }],
+  });
+  for (const x of [250, 210, 170, 120])
+    await client.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [{ x, y }],
+    });
+  await client.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
+    touchPoints: [],
+  });
+  await expect(page).toHaveURL(/\/courses\/?$/);
 });

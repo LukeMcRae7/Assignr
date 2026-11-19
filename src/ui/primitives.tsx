@@ -30,7 +30,7 @@ import {
 import { useFocusEffect } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { controls, useTheme } from "./theme";
+import { blend, controls, useTheme } from "./theme";
 
 export type IconName = ComponentProps<typeof MaterialCommunityIcons>["name"];
 export function Icon({
@@ -276,12 +276,16 @@ export function Chip({
       }
       style={{
         borderWidth: 1,
-        borderColor: selected ? color || t.accent : "transparent",
-        backgroundColor: selected ? t.elevated : "transparent",
-        paddingHorizontal: 11,
-        paddingVertical: 7,
-        borderRadius: 9,
-        minHeight: 40,
+        borderColor: selected
+          ? blend(color || t.accent, t.surface, 0.55)
+          : t.border,
+        backgroundColor: selected
+          ? blend(color || t.accent, t.surface, 0.16)
+          : t.subtle,
+        paddingHorizontal: 13,
+        paddingVertical: 4,
+        borderRadius: 20,
+        minHeight: 36,
         flexShrink: 0,
         justifyContent: "center",
       }}

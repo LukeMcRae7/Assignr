@@ -65,9 +65,28 @@ export function SemesterSelector({ compact = false }: { compact?: boolean }) {
             {w.selectedSemester?.name || "Semesters"}
           </Button>
         )}
+        <IconButton
+          icon="plus"
+          label="New semester"
+          onPress={() => setEditor("new")}
+        />
       </View>
       {open ? (
-        <Sheet visible title="Semesters" onClose={() => setOpen(false)}>
+        <Sheet
+          visible
+          title="Semesters"
+          onClose={() => setOpen(false)}
+          action={
+            <IconButton
+              icon="plus"
+              label="Add semester"
+              onPress={() => {
+                setOpen(false);
+                setEditor("new");
+              }}
+            />
+          }
+        >
           {(["Current", "Upcoming", "Past"] as const).map((status) => {
             const items = w.semesters.filter(
               (s) => semesterStatus(s) === status,
@@ -114,16 +133,6 @@ export function SemesterSelector({ compact = false }: { compact?: boolean }) {
               </View>
             ) : null;
           })}
-          <Button
-            variant="secondary"
-            icon="plus"
-            onPress={() => {
-              setOpen(false);
-              setEditor("new");
-            }}
-          >
-            Add semester
-          </Button>
         </Sheet>
       ) : null}
     </>

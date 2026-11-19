@@ -1,5 +1,11 @@
-import { useState } from "react";
-import { Linking, Pressable, ScrollView, View } from "react-native";
+import { useRef, useState } from "react";
+import {
+  Linking,
+  Pressable,
+  ScrollView,
+  useWindowDimensions,
+  View,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { displayDate } from "../../domain/dates";
@@ -37,6 +43,9 @@ export function CourseDetailScreen({ id }: { id: string }) {
   const t = useTheme();
   const [edit, setEdit] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const { width } = useWindowDimensions();
+  const swipe = useRef<{ x: number; y: number } | null>(null);
+  const back = () => router.replace("/courses");
   const course = courses.find((c) => c.id === id);
   if (!course)
     return (
@@ -87,6 +96,35 @@ export function CourseDetailScreen({ id }: { id: string }) {
           }}
         />
         <ScrollView
+          onTouchStart={({ nativeEvent: e }) => {
+            swipe.current =
+              width < 900 && e.touches.length === 1
+                ? { x: e.touches[0].pageX, y: e.touches[0].pageY }
+                : null;
+          }}
+          onTouchMove={({ nativeEvent: e }) => {
+            if (
+              swipe.current &&
+              (e.touches.length !== 1 ||
+                Math.abs(e.touches[0].pageY - swipe.current.y) > 38)
+            )
+              swipe.current = null;
+          }}
+          onTouchCancel={() => {
+            swipe.current = null;
+          }}
+          onTouchEnd={({ nativeEvent: e }) => {
+            const start = swipe.current;
+            const end = e.changedTouches[0];
+            swipe.current = null;
+            if (
+              start &&
+              end &&
+              start.x - end.pageX > 72 &&
+              Math.abs(end.pageY - start.y) < 38
+            )
+              back();
+          }}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ flexGrow: 1 }}
         >
@@ -110,7 +148,7 @@ export function CourseDetailScreen({ id }: { id: string }) {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Back to courses"
-                onPress={() => router.back()}
+                onPress={back}
                 style={{ padding: 8 }}
               >
                 <Icon name="chevron-left" color="#FFF" size={30} />
@@ -352,10 +390,15 @@ export function CourseDetailScreen({ id }: { id: string }) {
                   </Pressable>
                 ))}
               </Panel>
-              <View style={{ flexDirection: "row", gap: 8 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "center",
+                  gap: 8,
+                }}
+              >
                 <Button
                   compact
-                  variant="secondary"
                   icon="pencil-outline"
                   onPress={() => setEdit(true)}
                 >
