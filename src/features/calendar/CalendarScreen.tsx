@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Pressable, View, useWindowDimensions } from "react-native";
+import { Pressable, ScrollView, View, useWindowDimensions } from "react-native";
 import {
   addMonths,
   format,
@@ -24,6 +24,7 @@ import {
   Sheet,
   Text,
 } from "../../ui/primitives";
+import { EnterTransition } from "../../ui/EnterTransition";
 import { blend, useTheme } from "../../ui/theme";
 import { EventEditor } from "../events/EventEditor";
 import { EventDetail } from "../events/EventDetail";
@@ -58,7 +59,7 @@ export function CalendarScreen() {
   const [detailEditing, setDetailEditing] = useState(false);
   const panelOpen = composing || !!detail;
   const desktop = width >= 1100;
-  const wide = desktop && !panelOpen;
+
   const types = useMemo(() => usedTypes(events), [events]);
   const eventColor = (e: StudyEvent) =>
     e.kind === "exam" && p.highlight_exams
@@ -74,49 +75,159 @@ export function CalendarScreen() {
   const selectedEvents = byDay.get(selected) || [];
   function navigateMonth(direction: number) {
     const next = addMonths(month, direction);
-    setMonth(next);
-    setSelected(format(next, "yyyy-MM-dd"));
+    chooseDay(format(next, "yyyy-MM-dd"));
   }
+  function chooseDay(day: string) {
+    setSelected(day);
+    setMonth(startOfMonth(parseISO(day)));
+    if (!detailEditing) setDetail(null);
+  }
+  const agenda = (
+    <View
+      style={{
+        width: "100%",
+        padding: desktop ? 16 : 0,
+        gap: 22,
+      }}
+    >
+      {!desktop && (
+        <Text
+          style={{
+            fontSize: 18,
+            fontWeight: "500",
+            textAlign: desktop ? "left" : "center",
+          }}
+        >
+          {format(parseISO(selected), "EEEE, MMMM d, yyyy")}
+        </Text>
+      )}
+      {!selectedEvents.length ? (
+        <EmptyState
+          icon="calendar-blank-outline"
+          title="No events on this day"
+        />
+      ) : (
+        [...types]
+          .sort((a, b) => Number(b.kind === "exam") - Number(a.kind === "exam"))
+          .map((type) => {
+            const key = typeKey(type);
+            const items = selectedEvents.filter(
+              (o) => typeKey(o.event) === key,
+            );
+            return items.length ? (
+              <View key={key} style={{ gap: 8 }}>
+                <SectionTitle>
+                  {type.custom_type || typeLabels[type.kind]}
+                </SectionTitle>
+                {items.map((o) => (
+                  <EventRow
+                    key={o.key}
+                    occurrence={o}
+                    disabled={composing || detailEditing}
+                    onOpen={
+                      width >= 1100 ? (item) => setDetail(item) : undefined
+                    }
+                  />
+                ))}
+              </View>
+            ) : null;
+          })
+      )}
+    </View>
+  );
   return (
     <Screen
       title="Calendar"
       fluid={desktop}
       aside={
-        composing ? (
-          <EventEditor
-            context="general"
-            kind="activity"
-            date={selected}
-            presentation="inline"
-            onClose={() => setComposing(false)}
-          />
-        ) : detail ? (
-          <EventDetail
-            key={detail.key}
-            id={detail.event.id}
-            date={detail.original_date || undefined}
-            presentation="inline"
-            onEditStart={() => setDetailEditing(true)}
-            onClose={() => {
-              setDetail(null);
-              setDetailEditing(false);
+        desktop || panelOpen ? (
+          <View
+            style={{
+              flex: 1,
+              minHeight: 0,
+              borderLeftWidth: desktop ? 1 : 0,
+              borderColor: t.border,
+              paddingLeft: desktop ? 12 : 0,
             }}
-          />
+          >
+            {desktop && (
+              <View
+                style={{
+                  minHeight: 64,
+                  paddingHorizontal: 8,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 8,
+                  marginBottom: 8,
+                }}
+              >
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text muted style={{ fontSize: 13 }}>
+                    {format(parseISO(selected), "EEEE")}
+                  </Text>
+                  <Text
+                    accessibilityRole="header"
+                    style={{ fontSize: 22, fontWeight: "600" }}
+                  >
+                    {format(parseISO(selected), "MMMM d")}
+                  </Text>
+                </View>
+                {!panelOpen && (
+                  <Button
+                    compact
+                    icon="plus"
+                    label="Add event"
+                    onPress={() => setComposing(true)}
+                  >
+                    Add event
+                  </Button>
+                )}
+              </View>
+            )}
+            <EnterTransition
+              key={composing ? "compose" : detail?.key || "agenda"}
+              style={{ flex: 1, minHeight: 0 }}
+            >
+              {composing ? (
+                <EventEditor
+                  context="general"
+                  kind="activity"
+                  date={selected}
+                  onDateChange={chooseDay}
+                  presentation="inline"
+                  onClose={() => setComposing(false)}
+                />
+              ) : detail ? (
+                <EventDetail
+                  key={detail.key}
+                  id={detail.event.id}
+                  date={detail.original_date || undefined}
+                  presentation="inline"
+                  onEditingChange={setDetailEditing}
+                  onClose={() => {
+                    setDetail(null);
+                    setDetailEditing(false);
+                  }}
+                />
+              ) : desktop ? (
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  style={{ flex: 1 }}
+                >
+                  {agenda}
+                </ScrollView>
+              ) : null}
+            </EnterTransition>
+          </View>
         ) : undefined
       }
       actions={
         <>
-          {desktop && !panelOpen ? (
-            <Button compact icon="plus" onPress={() => setComposing(true)}>
-              Add event
-            </Button>
-          ) : null}
           <IconButton
             icon="calendar-today"
             label="Go to today"
             onPress={() => {
-              setSelected(today);
-              setMonth(startOfMonth(parseISO(today)));
+              chooseDay(today);
             }}
           />
           <IconButton
@@ -146,15 +257,14 @@ export function CalendarScreen() {
     >
       <View
         style={{
-          flexDirection: wide ? "row" : "column",
+          flexDirection: "column",
           gap: 36,
           alignItems: "flex-start",
         }}
       >
         <View
           style={{
-            flex: wide ? 1 : undefined,
-            width: wide ? undefined : "100%",
+            width: "100%",
           }}
         >
           <View
@@ -216,10 +326,7 @@ export function CalendarScreen() {
                     "EEEE, MMMM d, yyyy",
                   )}
                   accessibilityState={{ selected: date === selected }}
-                  onPress={() => {
-                    setSelected(date);
-                    if (!inMonth) setMonth(startOfMonth(parseISO(date)));
-                  }}
+                  onPress={() => chooseDay(date)}
                   style={{
                     width: `${100 / 7}%`,
                     minHeight: desktop
@@ -228,6 +335,10 @@ export function CalendarScreen() {
                         ? 46
                         : 54,
                     padding: desktop ? 5 : 0,
+                    backgroundColor:
+                      desktop && selected === date
+                        ? blend(t.accent, t.background, 0.07)
+                        : "transparent",
                     borderColor:
                       selected === date && desktop ? t.accent : t.border,
                     borderWidth: desktop ? 0.5 : 0,
@@ -316,56 +427,7 @@ export function CalendarScreen() {
             })}
           </View>
         </View>
-        <View
-          style={{
-            width: wide ? Math.min(320, width * 0.22) : "100%",
-            gap: 22,
-          }}
-        >
-          <Text
-            style={{
-              fontSize: 18,
-              fontWeight: "500",
-              textAlign: wide ? "left" : "center",
-            }}
-          >
-            {format(parseISO(selected), "EEEE, MMMM d, yyyy")}
-          </Text>
-          {!selectedEvents.length ? (
-            <EmptyState
-              icon="calendar-blank-outline"
-              title="No events on this day"
-            />
-          ) : (
-            [...types]
-              .sort(
-                (a, b) => Number(b.kind === "exam") - Number(a.kind === "exam"),
-              )
-              .map((type) => {
-                const key = typeKey(type);
-                const items = selectedEvents.filter(
-                  (o) => typeKey(o.event) === key,
-                );
-                return items.length ? (
-                  <View key={key} style={{ gap: 8 }}>
-                    <SectionTitle>
-                      {type.custom_type || typeLabels[type.kind]}
-                    </SectionTitle>
-                    {items.map((o) => (
-                      <EventRow
-                        key={o.key}
-                        occurrence={o}
-                        disabled={composing || detailEditing}
-                        onOpen={
-                          width >= 1100 ? (item) => setDetail(item) : undefined
-                        }
-                      />
-                    ))}
-                  </View>
-                ) : null;
-              })
-          )}
-        </View>
+        {!desktop && agenda}
       </View>
       {filters ? (
         <Sheet

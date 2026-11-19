@@ -1,3 +1,4 @@
+import { chooseDate } from "./pickers";
 import { test, expect, Page } from "@playwright/test";
 import { defaultPreferences } from "../../src/domain/model";
 
@@ -161,7 +162,7 @@ test("long event forms keep fields separate and actions reachable", async ({
       .getByLabel("Subtask " + i, { exact: true })
       .fill("Research step " + i);
   }
-  await page.getByLabel("Target date 1", { exact: true }).fill("2026-12-01");
+  await chooseDate(page, "Target date 1", "2026-12-01");
   await page.getByRole("button", { name: "More options", exact: true }).click();
   await page.getByLabel("Notes", { exact: true }).fill("Long form notes");
   await assertFormLayout(page);
@@ -208,10 +209,10 @@ test("semester controls stay in the header and the form stays compact", async ({
     })
     .click();
   const starts = await page
-    .locator('input[aria-label="Teaching starts"]')
+    .getByRole("button", { name: "Teaching starts", exact: true })
     .boundingBox();
   const ends = await page
-    .locator('input[aria-label="Teaching ends"]')
+    .getByRole("button", { name: "Teaching ends", exact: true })
     .boundingBox();
   expect(Math.abs(starts!.y - ends!.y)).toBeLessThan(2);
   expect(ends!.x).toBeGreaterThanOrEqual(starts!.x + starts!.width);
@@ -221,7 +222,7 @@ test("semester controls stay in the header and the form stays compact", async ({
   await page.screenshot({ path: info.outputPath("semester-dialog.png") });
 });
 
-test("drafts survive cancellation and confirm before navigating away", async ({
+test("cancel closes the composer immediately and clears its draft", async ({
   page,
 }, info) => {
   await seed(page);
@@ -249,20 +250,12 @@ test("drafts survive cancellation and confirm before navigating away", async ({
       .getByTestId("form-header")
       .getByRole("button", { name: "Close", exact: true })
       .click();
-  await page.getByRole("button", { name: "Keep editing", exact: true }).click();
-  await expect(title).toHaveValue("Unsaved assignment");
-  if ((page.viewportSize()?.width || 0) >= 1100) {
-    await page.getByRole("link", { name: "Calendar", exact: true }).click();
-  } else {
-    await page
-      .getByTestId("form-header")
-      .getByRole("button", { name: "Close", exact: true })
-      .click();
-  }
-  await page
-    .getByRole("button", { name: "Discard changes", exact: true })
-    .click();
-  await expect(page.getByLabel("Title", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  if (desktop) await expect(title).toHaveValue("");
+  else await expect(title).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Open Unsaved assignment", exact: true }),
+  ).toHaveCount(0);
 });
 
 test("calendar panel keeps context visible and preserves drafts through resizing", async ({
@@ -271,8 +264,18 @@ test("calendar panel keeps context visible and preserves drafts through resizing
   test.skip((page.viewportSize()?.width || 0) < 1100, "Desktop side panel");
   await seed(page);
   await page.goto("/calendar");
+  const day = page.getByRole("button", {
+    name: "Wednesday, November 18, 2026",
+    exact: true,
+  });
+  const before = await day.boundingBox();
   await page.getByRole("button", { name: "Add event", exact: true }).click();
   await page.getByLabel("Title", { exact: true }).fill("Study session");
+  await day.click();
+  await expect(
+    page.getByRole("button", { name: "Date", exact: true }),
+  ).toContainText("Nov 18");
+  expect(await day.boundingBox()).toEqual(before);
   await expect(
     page.getByRole("heading", { name: "Calendar", exact: true }),
   ).toBeInViewport();
@@ -329,9 +332,7 @@ test("small desktop overlays scroll without compressing controls", async ({
     page.getByRole("button", { name: "Create exam", exact: true }),
   ).toBeFocused();
   await page.keyboard.press("Escape");
-  await expect(
-    page.getByRole("button", { name: "Discard changes", exact: true }),
-  ).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
 test("editing legacy subtasks preserves dates and normalizes only the saved event", async ({
@@ -340,9 +341,9 @@ test("editing legacy subtasks preserves dates and normalizes only the saved even
   await seed(page);
   await page.goto("/event/assignment");
   await page.getByRole("button", { name: "Edit event", exact: true }).click();
-  await expect(page.getByLabel("Target date 1", { exact: true })).toHaveValue(
-    "2026-11-17",
-  );
+  await expect(
+    page.getByRole("button", { name: "Target date 1", exact: true }),
+  ).toContainText("Nov 17");
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
   const snapshot = await page.evaluate(
     () => JSON.parse(localStorage.getItem("assignr:v1:local")!).snapshot,
@@ -363,7 +364,7 @@ test("custom types follow their course section and last through the last event u
   await button("Other").click();
   await page.getByLabel("Type name", { exact: true }).fill("Reading");
   await page.getByLabel("Title", { exact: true }).fill("Week one");
-  await page.getByLabel("Due date", { exact: true }).fill("2025-01-15");
+  await chooseDate(page, "Due date", "2025-01-15");
   await button("Create reading").click();
   await button("Add assessment").click();
   await expect(button("Reading")).toHaveCount(0);
@@ -463,4 +464,90 @@ test("ToDo keeps personal and current tasks first while browsing another semeste
       page.getByRole("heading", { name: "Fall 2027", exact: true }),
     ).toBeVisible();
   }
+});
+
+test("Enter advances subtask entry and an empty next row can be saved", async ({
+  page,
+}) => {
+  await seed(page);
+  await page.goto("/event/new?kind=assignment");
+  await page
+    .getByRole("textbox", { name: "Title", exact: true })
+    .fill("Review session");
+  await page.getByRole("button", { name: "Add subtask", exact: true }).click();
+  const row = (n: number) =>
+    page.getByRole("textbox", { name: "Subtask " + n, exact: true });
+  await expect(row(1)).toBeFocused();
+  await row(1).fill("Open notes");
+  await row(1).press("Enter");
+  await expect(row(2)).toBeFocused();
+  await row(2).fill("Review examples");
+  await row(2).press("Enter");
+  await row(3).press("Enter");
+  await expect(row(3)).toBeFocused();
+  await expect(row(4)).toHaveCount(0);
+  await row(1).press("Enter");
+  await expect(row(2)).toBeFocused();
+  await page
+    .getByRole("button", { name: "Create assignment", exact: true })
+    .click();
+  const toggle = page.getByRole("button", {
+    name: "Subtasks for Review session",
+  });
+  await toggle.click();
+  await expect(
+    page.getByRole("checkbox", { name: "Review examples", exact: true }),
+  ).toBeInViewport();
+  await expect(toggle).toContainText("0/2");
+  await toggle.click();
+  await expect(
+    page.getByRole("checkbox", { name: "Review examples", exact: true }),
+  ).toHaveCount(0);
+});
+
+test("quick date changes preserve the local due time and other edits", async ({
+  page,
+}) => {
+  await seed(page);
+  await page.goto("/");
+  const label = "Change due date for Reading reflection";
+  const trigger = page.getByRole("button", { name: label, exact: true });
+  await trigger.click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  const readEvent = () =>
+    page.evaluate(
+      () =>
+        JSON.parse(localStorage.getItem("assignr:v1:local")!).snapshot
+          .events[0],
+    );
+  const original = await readEvent();
+  await chooseDate(page, label, "2026-11-25");
+  await expect(trigger).toContainText("Nov 25");
+  const saved = await readEvent();
+  expect(saved.subtasks).toEqual(original.subtasks);
+  expect(new Date(saved.due_at).toISOString().slice(11)).toBe(
+    new Date(original.due_at).toISOString().slice(11),
+  );
+  await page.reload();
+  await expect(trigger).toContainText("Nov 25");
+  await page.getByRole("button", { name: "Open Reading reflection" }).click();
+  await page
+    .getByTestId("form-body")
+    .getByRole("button", { name: label })
+    .click();
+  await page.keyboard.press("Escape");
+  await expect(
+    page.getByRole("dialog", { name: label, exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Reading reflection", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Edit event", exact: true }).click();
+  await page.getByRole("textbox", { name: "Title", exact: true }).fill("Unsaved rename");
+  const close = page.getByTestId("form-header").getByRole("button", { name: "Close", exact: true });
+  if (test.info().project.use.hasTouch) await close.tap();
+  else await close.click();
+  await expect(page.getByRole("heading", { name: "Reading reflection", exact: true })).toBeVisible();
 });

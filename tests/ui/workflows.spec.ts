@@ -1,3 +1,4 @@
+import { chooseDate, chooseTime } from "./pickers";
 import { test, expect } from "@playwright/test";
 
 test("course, classes, assignment, and in-class exam stay consistent", async ({
@@ -26,8 +27,8 @@ test("course, classes, assignment, and in-class exam stay consistent", async ({
   await page
     .getByRole("button", { name: "Add weekly class", exact: true })
     .click();
-  await page.getByLabel("Starts at", { exact: true }).fill("09:30");
-  await page.getByLabel("Ends at", { exact: true }).fill("10:30");
+  await chooseTime(page, "Starts at", "09:30");
+  await chooseTime(page, "Ends at", "10:30");
   await page.getByLabel("Location", { exact: true }).fill("B9201");
   await page
     .getByRole("button", { name: "Create lecture", exact: true })
@@ -131,7 +132,7 @@ test("subtask targets use optional dates rather than enforced deadlines", async 
   await page.getByLabel("Title", { exact: true }).fill("Independent reading");
   await page.getByRole("button", { name: "Add subtask", exact: true }).click();
   await page.getByLabel("Subtask 1", { exact: true }).fill("Read chapter one");
-  await page.getByLabel("Target date 1", { exact: true }).fill("2030-03-01");
+  await chooseDate(page, "Target date 1", "2030-03-01");
   await page
     .getByRole("button", { name: "Create assignment", exact: true })
     .click();
@@ -140,7 +141,7 @@ test("subtask targets use optional dates rather than enforced deadlines", async 
     .click();
   await expect(page.getByText("Mar 1", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Edit event", exact: true }).click();
-  await page.getByLabel("Target date 1", { exact: true }).fill("");
+  await chooseDate(page, "Target date 1", "");
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
   const snapshot = await page.evaluate(
     () => JSON.parse(localStorage.getItem("assignr:v1:local")!).snapshot,

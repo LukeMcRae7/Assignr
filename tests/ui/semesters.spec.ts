@@ -1,3 +1,4 @@
+import { chooseDate, chooseTime } from "./pickers";
 import { test, expect } from "@playwright/test";
 
 test("semester setup, switching, date edits, and history keep standalone plans visible", async ({
@@ -9,8 +10,8 @@ test("semester setup, switching, date edits, and history keep standalone plans v
     .getByRole("button", { name: "Create your first course", exact: true })
     .click();
   await page.getByLabel("Semester name", { exact: true }).fill("Fall 2026");
-  await page.getByLabel("Teaching starts", { exact: true }).fill("2026-09-01");
-  await page.getByLabel("Teaching ends", { exact: true }).fill("2026-12-18");
+  await chooseDate(page, "Teaching starts", "2026-09-01");
+  await chooseDate(page, "Teaching ends", "2026-12-18");
   await page
     .getByRole("button", { name: "Create semester", exact: true })
     .click();
@@ -39,8 +40,8 @@ test("semester setup, switching, date edits, and history keep standalone plans v
   await page.getByRole("button", { name: "Fall 2026", exact: true }).click();
   await page.getByRole("button", { name: "Add semester", exact: true }).click();
   await page.getByLabel("Semester name", { exact: true }).fill("Spring 2027");
-  await page.getByLabel("Teaching starts", { exact: true }).fill("2027-01-04");
-  await page.getByLabel("Teaching ends", { exact: true }).fill("2027-04-16");
+  await chooseDate(page, "Teaching starts", "2027-01-04");
+  await chooseDate(page, "Teaching ends", "2027-04-16");
   await page
     .getByRole("button", { name: "Create semester", exact: true })
     .click();
@@ -51,7 +52,7 @@ test("semester setup, switching, date edits, and history keep standalone plans v
   await page
     .getByRole("button", { name: "Edit Fall 2026", exact: true })
     .click();
-  await page.getByLabel("Teaching ends", { exact: true }).fill("2026-11-16");
+  await chooseDate(page, "Teaching ends", "2026-11-16");
   await expect(
     page.getByRole("button", { name: "Delete semester", exact: true }),
   ).toHaveCount(0);
@@ -84,7 +85,7 @@ test("semester setup, switching, date edits, and history keep standalone plans v
     0,
   );
   await page.getByText("Default due time", { exact: true }).click();
-  await page.locator('input[aria-label="Default due time"]').fill("18:45");
+  await chooseTime(page, "Default due time", "18:45");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("6:45 PM", { exact: true })).toBeVisible();
 });

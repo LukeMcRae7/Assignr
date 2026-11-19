@@ -6,6 +6,8 @@ import { Occurrence, StudyEvent } from "../../domain/model";
 import { typeLabel } from "../../domain/eventEditor";
 import { subtaskProgress } from "../../domain/schedule";
 import { useWorkspace } from "../../providers/WorkspaceProvider";
+import { DateTimeField } from "../../ui/DateTimeField";
+import { Disclosure } from "../../ui/Disclosure";
 import { Icon, Text } from "../../ui/primitives";
 import { blend, useTheme } from "../../ui/theme";
 
@@ -32,6 +34,7 @@ export function AssignmentRow({
     preferences: p,
     toggleAssignment,
     toggleSubtask,
+    changeDueDate,
     perform,
   } = useWorkspace();
   const t = useTheme();
@@ -51,7 +54,7 @@ export function AssignmentRow({
         style={{
           flexDirection: "row",
           alignItems: "center",
-          gap: 12,
+          gap: 6,
           paddingVertical: 5,
         }}
       >
@@ -87,41 +90,53 @@ export function AssignmentRow({
             ) : null}
           </View>
         </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Open ${event.title}`}
-          onPress={() => router.push(`/event/${event.id}`)}
-          style={{ flex: 1, gap: 5, paddingVertical: 3 }}
-        >
-          <Text
-            style={{
-              fontWeight: "500",
-              textDecorationLine: event.completed ? "line-through" : "none",
-              color: event.completed ? t.muted : t.text,
-            }}
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Open ${event.title}`}
+            onPress={() => router.push(`/event/${event.id}`)}
+            style={{ gap: 3, minHeight: 32, justifyContent: "center" }}
           >
-            {event.title}
-          </Text>
-          {showCourse ? (
-            <Text muted style={{ fontSize: 12, lineHeight: 18 }}>
-              {course?.name || "Personal"}
-            </Text>
-          ) : null}
-          {event.subtasks.length ? (
-            <View
+            <Text
               style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 10,
-                marginTop: 3,
+                fontWeight: "500",
+                textDecorationLine: event.completed ? "line-through" : "none",
+                color: event.completed ? t.muted : t.text,
               }}
             >
+              {event.title}
+            </Text>
+            {showCourse ? (
+              <Text muted style={{ fontSize: 12, lineHeight: 18 }}>
+                {course?.name || "Personal"}
+              </Text>
+            ) : null}
+          </Pressable>
+          {event.subtasks.length ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={"Subtasks for " + event.title}
+              aria-expanded={expanded}
+              onPress={() => setExpanded(!expanded)}
+              style={{
+                minHeight: 32,
+                flexDirection: "row",
+                alignItems: "center",
+                alignSelf: "flex-start",
+                gap: 6,
+                paddingRight: 8,
+              }}
+            >
+              <Icon
+                size={16}
+                color={t.muted}
+                name={expanded ? "chevron-down" : "chevron-right"}
+              />
               <View
                 style={{
                   height: 4,
                   backgroundColor: t.elevated,
-                  flex: 1,
-                  maxWidth: 140,
+                  width: 54,
                   borderRadius: 3,
                   overflow: "hidden",
                 }}
@@ -138,26 +153,10 @@ export function AssignmentRow({
                 {event.subtasks.filter((s) => s.completed).length}/
                 {event.subtasks.length}
               </Text>
-            </View>
+            </Pressable>
           ) : null}
-        </Pressable>
-        {event.subtasks.length ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={"Subtasks for " + event.title}
-            aria-expanded={expanded}
-            onPress={() => setExpanded(!expanded)}
-            style={{
-              minWidth: 36,
-              minHeight: 44,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Icon size={18} name={expanded ? "chevron-up" : "chevron-down"} />
-          </Pressable>
-        ) : null}
-        <View style={{ alignItems: "flex-end", gap: 3 }}>
+        </View>
+        <View style={{ alignItems: "flex-end", gap: 0 }}>
           {event.priority ? (
             <Icon
               name="flag-variant-outline"
@@ -171,13 +170,21 @@ export function AssignmentRow({
               }
             />
           ) : null}
-          <Text style={{ fontSize: 13, color: overdue ? t.danger : t.muted }}>
-            {event.due_at
-              ? dueToday
-                ? "Today"
-                : displayDate(event.due_at, p.timezone)
-              : ""}
-          </Text>
+          {event.due_at && (
+            <DateTimeField
+              compact
+              mode="date"
+              label={"Change due date for " + event.title}
+              value={dayKey(new Date(event.due_at), p.timezone)}
+              displayLabel={
+                dueToday ? "Today" : displayDate(event.due_at, p.timezone)
+              }
+              color={overdue ? t.danger : t.muted}
+              onChangeText={(date) =>
+                void perform(() => changeDueDate(event.id, date))
+              }
+            />
+          )}
           {dueToday && event.due_at ? (
             <Text muted style={{ fontSize: 11, lineHeight: 16 }}>
               {displayTime(event.due_at, p.timezone, p.hour24)}
@@ -185,48 +192,54 @@ export function AssignmentRow({
           ) : null}
         </View>
       </View>
-      {expanded && event.subtasks.length ? (
-        <View
-          style={{
-            marginLeft: 24,
-            paddingLeft: 12,
-            borderLeftWidth: 2,
-            borderLeftColor: course?.color || t.accent,
-          }}
-        >
-          {event.subtasks.map((s) => (
-            <Pressable
-              key={s.id}
-              accessibilityRole="checkbox"
-              aria-checked={s.completed}
-              accessibilityState={{ checked: s.completed }}
-              accessibilityLabel={s.title}
-              onPress={() => void perform(() => toggleSubtask(event.id, s.id))}
-              style={{
-                minHeight: 44,
-                flexDirection: "row",
-                gap: 8,
-                alignItems: "center",
-              }}
-            >
-              <Icon
-                name={
-                  s.completed ? "checkbox-marked" : "checkbox-blank-outline"
+      {event.subtasks.length ? (
+        <Disclosure open={expanded}>
+          <View
+            style={{
+              marginLeft: 44,
+              marginTop: 2,
+              marginBottom: 5,
+              paddingHorizontal: 10,
+              borderRadius: 10,
+              backgroundColor: t.subtle,
+            }}
+          >
+            {event.subtasks.map((s) => (
+              <Pressable
+                key={s.id}
+                accessibilityRole="checkbox"
+                aria-checked={s.completed}
+                accessibilityState={{ checked: s.completed }}
+                accessibilityLabel={s.title}
+                onPress={() =>
+                  void perform(() => toggleSubtask(event.id, s.id))
                 }
-                size={18}
-              />
-              <Text
                 style={{
-                  fontSize: 14,
-                  flex: 1,
-                  textDecorationLine: s.completed ? "line-through" : "none",
+                  minHeight: 44,
+                  flexDirection: "row",
+                  gap: 8,
+                  alignItems: "center",
                 }}
               >
-                {s.title}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+                <Icon
+                  name={
+                    s.completed ? "checkbox-marked" : "checkbox-blank-outline"
+                  }
+                  size={18}
+                />
+                <Text
+                  style={{
+                    fontSize: 14,
+                    flex: 1,
+                    textDecorationLine: s.completed ? "line-through" : "none",
+                  }}
+                >
+                  {s.title}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        </Disclosure>
       ) : null}
     </View>
   );

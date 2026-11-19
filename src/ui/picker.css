@@ -1,0 +1,198 @@
+/* Keep pointer, keyboard and touchscreen scrolling in the same surface. */
+.picker-trigger,
+.picker-card button {
+  font: inherit;
+  box-sizing: border-box;
+  color: inherit;
+  cursor: pointer;
+  appearance: none;
+}
+.picker-trigger {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--pick-surface);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 7px 11px;
+  font:
+    14px system-ui,
+    sans-serif;
+}
+.picker-trigger.compact {
+  width: auto;
+  min-width: 38px;
+  padding: 4px 7px;
+  justify-content: center;
+  background: transparent;
+  font-size: 13px;
+}
+.picker-trigger:hover,
+.picker-card button:hover {
+  background: var(--pick-hover);
+}
+.picker-trigger:focus-visible,
+.picker-card button:focus-visible {
+  outline: 2px solid var(--pick-accent);
+  outline-offset: -2px;
+}
+.picker-backdrop::backdrop {
+  background: transparent;
+}
+.picker-backdrop {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  overflow: hidden;
+  position: fixed;
+  inset: 0;
+  font:
+    14px system-ui,
+    sans-serif;
+  color: var(--pick-text);
+}
+.picker-card {
+  position: absolute;
+  box-sizing: border-box;
+  width: min(288px, calc(100vw - 16px));
+  max-height: calc(100dvh - 16px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 10px;
+  border: 1px solid var(--pick-border);
+  border-radius: 16px;
+  background: var(--pick-bg);
+  box-shadow: 0 12px 40px #0003;
+}
+.picker-card button {
+  border: 0;
+  border-radius: 8px;
+  min-height: 32px;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+.picker-label,
+.picker-heading,
+.picker-time {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.picker-label {
+  color: var(--pick-muted);
+  font-weight: 500;
+  font-size: 12px;
+  padding-left: 6px;
+}
+.picker-heading {
+  min-height: 38px;
+  font-weight: 600;
+}
+.picker-heading strong {
+  padding: 0 6px;
+  font-size: 20px;
+}
+.picker-grid,
+.picker-months {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 1px;
+}
+.picker-months {
+  grid-template-columns: repeat(3, 1fr);
+  padding: 6px 0;
+}
+.picker-grid span,
+.picker-column span {
+  text-align: center;
+  color: var(--pick-muted);
+  font-size: 12px;
+  padding: 4px;
+}
+.picker-grid button {
+  font-variant-numeric: tabular-nums;
+}
+.picker-grid button[data-muted="true"] {
+  color: var(--pick-muted);
+}
+.picker-card button[aria-current="date"] {
+  box-shadow: inset 0 0 0 1px var(--pick-accent);
+}
+.picker-card button[aria-pressed="true"],
+.picker-card .picker-done {
+  background: var(--pick-accent);
+  color: white;
+  font-weight: 600;
+}
+.picker-card .picker-today {
+  color: var(--pick-accent);
+  display: inline-flex;
+  margin: 4px 4px 0 0;
+  padding: 0 10px;
+}
+.picker-time {
+  align-items: flex-start;
+  padding: 6px 0 12px;
+}
+.picker-column {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 4px;
+}
+.picker-column > div {
+  max-height: min(148px, 32vh);
+  overflow-y: auto;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+  border-radius: 8px;
+  background: var(--pick-surface);
+}
+.picker-column button {
+  width: 100%;
+}
+.picker-period {
+  display: grid;
+  gap: 4px;
+  margin-top: 23px;
+}
+.picker-card .picker-done {
+  width: 100%;
+}
+.picker-card,
+textarea {
+  scrollbar-width: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .picker-card {
+    animation: picker-in 130ms ease-out;
+  }
+  .picker-trigger,
+  .picker-card button {
+    transition: background-color 100ms;
+  }
+  @keyframes picker-in {
+    from {
+      opacity: 0;
+      transform: translateY(3px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}

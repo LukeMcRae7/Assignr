@@ -109,7 +109,8 @@ function RootNavigator() {
           name="event/new"
           options={{
             presentation: "transparentModal",
-            animation: "none",
+            animation:
+              Platform.OS === "web" || t.reduceMotion ? "none" : "fade",
             contentStyle: { backgroundColor: "transparent" },
           }}
         />
@@ -117,7 +118,8 @@ function RootNavigator() {
           name="event/[id]"
           options={{
             presentation: "transparentModal",
-            animation: "none",
+            animation:
+              Platform.OS === "web" || t.reduceMotion ? "none" : "fade",
             contentStyle: { backgroundColor: "transparent" },
           }}
         />

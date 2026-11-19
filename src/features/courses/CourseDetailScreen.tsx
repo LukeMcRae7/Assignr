@@ -86,7 +86,10 @@ export function CourseDetailScreen({ id }: { id: string }) {
             backgroundColor: banner,
           }}
         />
-        <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ flexGrow: 1 }}
+        >
           <View
             style={{
               backgroundColor: banner,

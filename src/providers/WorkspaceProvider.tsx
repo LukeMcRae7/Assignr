@@ -22,7 +22,13 @@ import {
   Table,
 } from "../domain/model";
 import { validateCourse, validateEvent } from "../domain/validation";
-import { weekday } from "../domain/dates";
+import {
+  dayKey,
+  displayTime,
+  isDate,
+  weekday,
+  zonedISO,
+} from "../domain/dates";
 import { StudyStore } from "../data/store";
 import { createRemote, supabase } from "../data/supabase";
 import { useAuth } from "./AuthProvider";
@@ -245,6 +251,20 @@ function useCreateWorkspace(userId: string) {
       },
     ]);
   }
+  async function changeDueDate(id: string, date: string) {
+    if (!isDate(date)) throw new Error("Choose a valid due date.");
+    await store.commit((snapshot) => {
+      const event = snapshot.events.find((e) => e.id === id && !e.deleted_at);
+      if (!event?.due_at || dayKey(new Date(event.due_at), timezone) === date)
+        return [];
+      const due_at = zonedISO(
+        date,
+        displayTime(event.due_at, timezone, true),
+        timezone,
+      );
+      return [{ table: "events", record: { ...event, due_at } }];
+    });
+  }
   async function toggleAssignment(id: string) {
     await store.commit((snapshot) => {
       const event = snapshot.events.find((e) => e.id === id && !e.deleted_at);
@@ -301,6 +321,7 @@ function useCreateWorkspace(userId: string) {
     deleteEvent,
     skipOccurrence,
     updatePreferences,
+    changeDueDate,
     toggleAssignment,
     toggleSubtask,
     perform,

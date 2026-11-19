@@ -6,13 +6,12 @@ import { useWorkspace } from "../../providers/WorkspaceProvider";
 import { DateTimeField } from "../../ui/DateTimeField";
 import {
   Button,
-  Confirm,
+  ConfirmButtons,
   Field,
   FormRow,
   Sheet,
   Text,
 } from "../../ui/primitives";
-import { useDraftGuard } from "../../ui/useDraftGuard";
 import { useTheme } from "../../ui/theme";
 
 export function SemesterEditor({
@@ -39,8 +38,6 @@ export function SemesterEditor({
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
-  const [initial] = useState(() => JSON.stringify(draft));
-  const guard = useDraftGuard(initial !== JSON.stringify(draft), busy, onClose);
   const linked = w.courses.filter((c) => c.semester_id === draft.id);
   const outside = exceptionsOutsideSemester(draft, w.courses, w.events);
   async function save() {
@@ -48,87 +45,85 @@ export function SemesterEditor({
     setError("");
     try {
       await w.saveSemester(draft);
-      guard.finish(() => {
-        onSaved?.(draft);
-        onClose();
-      });
+      onSaved?.(draft);
+      onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save semester.");
     } finally {
       setBusy(false);
     }
   }
-  return (
-    <>
-      <Sheet
-        visible
-        title={semester ? "Edit semester" : "New semester"}
-        onClose={guard.requestClose}
-        action={
-          <Button
-            compact
-            label={semester ? "Save semester" : "Create semester"}
-            busy={busy}
-            onPress={() => void save()}
-          >
-            {semester ? "Save" : "Create"}
-          </Button>
-        }
-      >
-        <Field
-          label="Semester name"
-          placeholder="e.g. Fall 2026"
-          value={draft.name}
-          onChangeText={(name) => setDraft({ ...draft, name })}
-          maxLength={120}
+  if (confirm)
+    return (
+      <Sheet visible title="Delete semester?" onClose={() => setConfirm(false)}>
+        <ConfirmButtons
+          message="This semester has no courses."
+          onCancel={() => setConfirm(false)}
+          onConfirm={() => {
+            void w.perform(async () => {
+              await w.deleteSemester(draft);
+              onClose();
+            });
+          }}
         />
-        <FormRow>
-          <DateTimeField
-            mode="date"
-            label="Teaching starts"
-            value={draft.start_date}
-            onChangeText={(start_date) => setDraft({ ...draft, start_date })}
-          />
-          <DateTimeField
-            mode="date"
-            label="Teaching ends"
-            value={draft.end_date}
-            onChangeText={(end_date) => setDraft({ ...draft, end_date })}
-          />
-        </FormRow>
-        {outside.length ? (
-          <Text style={{ color: t.danger }}>
-            {outside.length} class{" "}
-            {outside.length === 1 ? "change falls" : "changes fall"} outside
-            these teaching dates. They will be kept; review them in the course
-            schedule.
-          </Text>
-        ) : null}
-        {error ? (
-          <Text accessibilityRole="alert" style={{ color: t.danger }}>
-            {error}
-          </Text>
-        ) : null}
-        {semester && !linked.length ? (
-          <Button variant="danger" onPress={() => setConfirm(true)}>
-            Delete semester
-          </Button>
-        ) : null}
-        {confirm ? (
-          <Confirm
-            title="Delete semester?"
-            message="This semester has no courses."
-            onCancel={() => setConfirm(false)}
-            onConfirm={() => {
-              void w.perform(async () => {
-                await w.deleteSemester(draft);
-                guard.finish();
-              });
-            }}
-          />
-        ) : null}
       </Sheet>
-      {guard.confirmation}
-    </>
+    );
+  return (
+    <Sheet
+      visible
+      title={semester ? "Edit semester" : "New semester"}
+      onClose={() => {
+        if (!busy) onClose();
+      }}
+      action={
+        <Button
+          compact
+          label={semester ? "Save semester" : "Create semester"}
+          busy={busy}
+          onPress={() => void save()}
+        >
+          {semester ? "Save" : "Create"}
+        </Button>
+      }
+    >
+      <Field
+        label="Semester name"
+        placeholder="e.g. Fall 2026"
+        value={draft.name}
+        onChangeText={(name) => setDraft({ ...draft, name })}
+        maxLength={120}
+      />
+      <FormRow>
+        <DateTimeField
+          mode="date"
+          label="Teaching starts"
+          value={draft.start_date}
+          onChangeText={(start_date) => setDraft({ ...draft, start_date })}
+        />
+        <DateTimeField
+          mode="date"
+          label="Teaching ends"
+          value={draft.end_date}
+          onChangeText={(end_date) => setDraft({ ...draft, end_date })}
+        />
+      </FormRow>
+      {outside.length ? (
+        <Text style={{ color: t.danger }}>
+          {outside.length} class{" "}
+          {outside.length === 1 ? "change falls" : "changes fall"} outside these
+          teaching dates. They will be kept; review them in the course schedule.
+        </Text>
+      ) : null}
+      {error ? (
+        <Text accessibilityRole="alert" style={{ color: t.danger }}>
+          {error}
+        </Text>
+      ) : null}
+      {semester && !linked.length ? (
+        <Button variant="danger" onPress={() => setConfirm(true)}>
+          Delete semester
+        </Button>
+      ) : null}
+    </Sheet>
   );
 }

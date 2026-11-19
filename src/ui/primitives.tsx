@@ -1,5 +1,6 @@
 import {
   Children,
+  useCallback,
   ComponentProps,
   PropsWithChildren,
   ReactNode,
@@ -9,6 +10,7 @@ import {
 } from "react";
 import {
   ActivityIndicator,
+  BackHandler,
   Modal,
   Platform,
   Pressable,
@@ -25,6 +27,7 @@ import {
   KeyboardAvoidingView,
   Keyboard,
 } from "react-native";
+import { useFocusEffect } from "expo-router";
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { controls, useTheme } from "./theme";
@@ -175,6 +178,7 @@ export function Field({
   label,
   hint,
   style,
+  inputRef,
   hideLabel = false,
   prominent = false,
   outlined = false,
@@ -182,6 +186,7 @@ export function Field({
 }: TextInputProps & {
   label: string;
   hint?: string;
+  inputRef?: ComponentProps<typeof TextInput>["ref"];
   hideLabel?: boolean;
   prominent?: boolean;
   outlined?: boolean;
@@ -197,6 +202,7 @@ export function Field({
       ) : null}
       <TextInput
         {...props}
+        ref={inputRef}
         accessibilityLabel={label}
         placeholderTextColor={t.muted}
         selectionColor={t.accent}
@@ -410,6 +416,7 @@ export function Screen({
             </View>
           </View>
           <ScrollView
+            showsVerticalScrollIndicator={false}
             style={{ flex: 1, minWidth: 0 }}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
@@ -544,7 +551,7 @@ export function EmptyState({
     </View>
   );
 }
-export type FormPresentation = "dialog" | "panel" | "inline";
+export type FormPresentation = "dialog" | "panel" | "inline" | "route";
 export function Sheet({
   visible,
   title,
@@ -693,6 +700,7 @@ export function Sheet({
         </Text>
       ) : null}
       <ScrollView
+        showsVerticalScrollIndicator={false}
         testID="form-body"
         style={{
           flexShrink: 1,
@@ -732,6 +740,40 @@ export function Sheet({
     </SafeAreaView>
   );
   if (inline) return content;
+  const overlay = (
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      style={{
+        flex: 1,
+        backgroundColor: "#00000060",
+        justifyContent: mobile ? "flex-end" : "center",
+        alignItems: side ? "flex-end" : "center",
+        padding: mobile || side ? 0 : 24,
+      }}
+    >
+      <Pressable
+        accessibilityLabel="Close dialog"
+        onPress={onClose}
+        style={StyleSheet.absoluteFill}
+      />
+      {side ? (
+        <View
+          style={{
+            width: 460,
+            maxWidth: "100%",
+            height: "100%",
+            justifyContent: "center",
+          }}
+        >
+          {content}
+        </View>
+      ) : (
+        content
+      )}
+    </KeyboardAvoidingView>
+  );
+  if (presentation === "route" && Platform.OS !== "web")
+    return <RouteSheet onClose={onClose}>{overlay}</RouteSheet>;
   return (
     <Modal
       visible
@@ -739,54 +781,43 @@ export function Sheet({
       animationType={t.reduceMotion ? "none" : "fade"}
       onRequestClose={onClose}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={{
-          flex: 1,
-          backgroundColor: "#00000060",
-          justifyContent: mobile ? "flex-end" : "center",
-          alignItems: side ? "flex-end" : "center",
-          padding: mobile || side ? 0 : 24,
-        }}
-      >
-        <Pressable
-          accessibilityLabel="Close dialog"
-          onPress={onClose}
-          style={StyleSheet.absoluteFill}
-        />
-        {side ? (
-          <View
-            style={{
-              width: 460,
-              maxWidth: "100%",
-              height: "100%",
-              justifyContent: "center",
-            }}
-          >
-            {content}
-          </View>
-        ) : (
-          content
-        )}
-      </KeyboardAvoidingView>
+      {overlay}
     </Modal>
   );
 }
-export function Confirm({
-  title,
-  message,
-  onCancel,
-  onConfirm,
-  busy,
-}: {
+
+// The event route already presents a native modal surface.
+function RouteSheet({
+  children,
+  onClose,
+}: PropsWithChildren<{ onClose(): void }>) {
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== "android") return;
+      const back = BackHandler.addEventListener("hardwareBackPress", () => {
+        onClose();
+        return true;
+      });
+      return () => back.remove();
+    }, [onClose]),
+  );
+  return <>{children}</>;
+}
+interface ConfirmProps {
   title: string;
   message: string;
   onCancel(): void;
   onConfirm(): void;
   busy?: boolean;
-}) {
+}
+export function ConfirmButtons({
+  message,
+  onCancel,
+  onConfirm,
+  busy,
+}: Omit<ConfirmProps, "title">) {
   return (
-    <Sheet visible title={title} onClose={onCancel}>
+    <>
       <Text muted>{message}</Text>
       <Button variant="danger" onPress={onConfirm} busy={busy}>
         Delete
@@ -794,6 +825,13 @@ export function Confirm({
       <Button variant="secondary" onPress={onCancel}>
         Keep it
       </Button>
+    </>
+  );
+}
+export function Confirm({ title, ...props }: ConfirmProps) {
+  return (
+    <Sheet visible title={title} onClose={props.onCancel}>
+      <ConfirmButtons {...props} />
     </Sheet>
   );
 }

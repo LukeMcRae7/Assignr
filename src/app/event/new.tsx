@@ -15,6 +15,7 @@ export default function NewEventRoute() {
   return (
     <EventEditor
       {...params}
+      presentation="route"
       context={
         ["assignments", "assessments", "classes", "general"].includes(
           params.context || "",

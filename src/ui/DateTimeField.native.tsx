@@ -18,6 +18,8 @@ export function DateTimeField({
   onChangeText,
   hint,
   compact = false,
+  displayLabel,
+  color,
   onClear,
 }: DateTimeFieldProps) {
   const t = useTheme();
@@ -59,7 +61,7 @@ export function DateTimeField({
           borderWidth: 1,
           borderColor: "transparent",
           borderRadius: 10,
-          backgroundColor: t.surface,
+          backgroundColor: compact ? "transparent" : t.surface,
           padding: compact ? 8 : 11,
           minHeight: 44,
           gap: 6,
@@ -72,15 +74,21 @@ export function DateTimeField({
           <Text
             numberOfLines={1}
             adjustsFontSizeToFit
-            style={{ flexShrink: 1, fontSize: compact ? 12 : 15 }}
+            style={{
+              flexShrink: 1,
+              color: color || t.text,
+              fontSize: compact ? 13 : 15,
+            }}
           >
-            {mode === "date"
-              ? format(selected, compact ? "MMM d" : "MMM d, yyyy")
-              : displayWallTime(value, preferences.hour24)}
+            {displayLabel ||
+              (mode === "date"
+                ? format(selected, compact ? "MMM d" : "MMM d, yyyy")
+                : displayWallTime(value, preferences.hour24))}
           </Text>
         ) : null}
         <Icon
           name={mode === "date" ? "calendar-blank-outline" : "clock-outline"}
+          color={color || t.muted}
           size={18}
         />
       </Pressable>
@@ -93,7 +101,7 @@ export function DateTimeField({
         <Modal
           transparent
           visible
-          animationType="fade"
+          animationType={t.reduceMotion ? "none" : "fade"}
           onRequestClose={() => setPickerDate(null)}
         >
           <View
@@ -149,6 +157,13 @@ export function DateTimeField({
                 }}
               >
                 Done
+              </Button>
+              <Button
+                compact
+                variant="ghost"
+                onPress={() => setPickerDate(null)}
+              >
+                Cancel
               </Button>
               {value && onClear ? (
                 <Button

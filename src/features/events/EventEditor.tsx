@@ -1,11 +1,11 @@
-import { PropsWithChildren, useEffect, useRef, useState } from "react";
+import { ComponentRef, useRef, useState } from "react";
 import {
-  Animated,
   Keyboard,
   Platform,
   Pressable,
   ScrollView,
   Switch,
+  TextInput,
   View,
   useWindowDimensions,
 } from "react-native";
@@ -40,11 +40,11 @@ import {
   Sheet,
   Text,
 } from "../../ui/primitives";
+import { EnterTransition } from "../../ui/EnterTransition";
 import { useTheme } from "../../ui/theme";
 import { DateTimeField } from "../../ui/DateTimeField";
 import { EventTypePicker } from "./EventTypePicker";
 import { CourseSelector } from "./CourseSelector";
-import { useDraftGuard } from "../../ui/useDraftGuard";
 
 export interface EventEditorProps {
   quickEntry?: { expanded: boolean; expand(): void };
@@ -55,9 +55,11 @@ export interface EventEditorProps {
   courseId?: string;
   semesterId?: string;
   date?: string;
+  onDateChange?(date: string): void;
   parentId?: string;
   originalDate?: string;
   onClose(): void;
+  onSaved?(): void;
 }
 export function EventEditor({
   quickEntry,
@@ -68,9 +70,11 @@ export function EventEditor({
   courseId,
   semesterId,
   date,
+  onDateChange,
   parentId,
   originalDate,
   onClose,
+  onSaved = onClose,
 }: EventEditorProps) {
   const {
     base,
@@ -132,7 +136,7 @@ export function EventEditor({
   const point =
     event?.starts_at || event?.due_at || parentOccurrence?.starts_at;
   const end = event?.ends_at || parentOccurrence?.ends_at;
-  const [eventDate, setDate] = useState(
+  const [localDate, setLocalDate] = useState(
     parentOccurrence?.starts_at
       ? displayDate(parentOccurrence.starts_at, p.timezone, "yyyy-MM-dd")
       : date ||
@@ -140,9 +144,13 @@ export function EventEditor({
             ? displayDate(point, p.timezone, "yyyy-MM-dd")
             : dayKey(new Date(), p.timezone)),
   );
-  const [endDate, setEndDate] = useState(
-    end ? displayDate(end, p.timezone, "yyyy-MM-dd") : eventDate,
+  const eventDate = onDateChange && date ? date : localDate;
+  const setDate = onDateChange || setLocalDate;
+  const [explicitEnd, setEndDate] = useState(
+    end ? displayDate(end, p.timezone, "yyyy-MM-dd") : "",
   );
+  const endDate =
+    explicitEnd && explicitEnd >= eventDate ? explicitEnd : eventDate;
   const [startTime, setStartTime] = useState(
     point && !event?.due_at ? displayTime(point, p.timezone, true) : "09:30",
   );
@@ -193,19 +201,32 @@ export function EventEditor({
   const [busy, setBusy] = useState(false);
   const saving = useRef(false);
   const [error, setError] = useState("");
-  const signature = JSON.stringify({
-    draft,
-    eventDate,
-    endDate,
-    startTime,
-    endTime,
-    dueTime,
-    weekly,
-    rule,
-    timing,
-  });
-  const [initial] = useState(signature);
-  const guard = useDraftGuard(initial !== signature, busy, onClose);
+  const subtaskInputs = useRef(
+    new Map<string, ComponentRef<typeof TextInput>>(),
+  );
+  const pendingFocus = useRef<string | null>(null);
+  function close() {
+    if (saving.current) return;
+    Keyboard.dismiss();
+    onClose();
+  }
+  function nextSubtask(index = draft.subtasks.length - 1) {
+    const current = draft.subtasks[index];
+    const next =
+      current && !current.title.trim() ? current : draft.subtasks[index + 1];
+    if (next) {
+      subtaskInputs.current.get(next.id)?.focus();
+      return;
+    }
+    const id = newId();
+    pendingFocus.current = id;
+    patch({
+      subtasks: [
+        ...draft.subtasks,
+        { id, title: "", completed: false, target_date: null },
+      ],
+    });
+  }
   const patch = (value: Partial<StudyEvent>) =>
     setDraft((old) => ({ ...old, ...value }));
   const course = courses.find((c) => c.id === draft.course_id);
@@ -239,6 +260,9 @@ export function EventEditor({
       const next: StudyEvent = {
         ...draft,
         custom_type: customType,
+        subtasks: draft.subtasks.filter(
+          (s) => s.title.trim() || s.target_date || s.completed,
+        ),
         title:
           draft.title.trim() ||
           (CLASS_KINDS.includes(draft.kind)
@@ -271,7 +295,7 @@ export function EventEditor({
         next.ends_at = zonedISO(endDate, endTime, p.timezone);
       }
       await saveEvent(next);
-      guard.finish();
+      onSaved();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save event.");
     } finally {
@@ -331,7 +355,17 @@ export function EventEditor({
               : "Title"
         }
         hideLabel
-        prominent={!desktopEntry}
+        prominent={!desktopEntry && width >= 700}
+        style={
+          width < 700
+            ? {
+                fontSize: 18,
+                fontWeight: "500",
+                paddingHorizontal: 14,
+                minHeight: 48,
+              }
+            : undefined
+        }
         placeholder={
           isClass
             ? kindLabels[draft.kind]
@@ -339,7 +373,7 @@ export function EventEditor({
               ? "Assignment name"
               : "Event name"
         }
-        outlined={desktopEntry}
+        outlined={desktopEntry || width < 700}
         value={draft.title}
         onChangeText={(title) => patch({ title })}
         maxLength={180}
@@ -512,7 +546,7 @@ export function EventEditor({
             value={eventDate}
             onChangeText={(date) => {
               setDate(date);
-              setEndDate(date);
+              setEndDate("");
             }}
           />
           <DateTimeField
@@ -529,7 +563,7 @@ export function EventEditor({
             label="Date"
             value={eventDate}
             onChangeText={(d) => {
-              if (endDate === eventDate || endDate < d) setEndDate(d);
+              if (endDate === eventDate || endDate < d) setEndDate("");
               setDate(d);
             }}
           />
@@ -582,6 +616,22 @@ export function EventEditor({
                   label={"Subtask " + (index + 1)}
                   value={subtask.title}
                   placeholder="Subtask name"
+                  inputRef={(input) => {
+                    if (!input) {
+                      subtaskInputs.current.delete(subtask.id);
+                      return;
+                    }
+                    subtaskInputs.current.set(subtask.id, input);
+                    if (pendingFocus.current === subtask.id) {
+                      pendingFocus.current = null;
+                      input.focus();
+                    }
+                  }}
+                  returnKeyType="next"
+                  {...(Platform.OS === "web"
+                    ? { blurOnSubmit: false }
+                    : { submitBehavior: "submit" as const })}
+                  onSubmitEditing={() => nextSubtask(index)}
                   onChangeText={(title) =>
                     patch({
                       subtasks: draft.subtasks.map((s) =>
@@ -629,19 +679,7 @@ export function EventEditor({
               compact
               variant="ghost"
               icon="plus"
-              onPress={() =>
-                patch({
-                  subtasks: [
-                    ...draft.subtasks,
-                    {
-                      id: newId(),
-                      title: "",
-                      completed: false,
-                      target_date: null,
-                    },
-                  ],
-                })
-              }
+              onPress={() => nextSubtask()}
             >
               Add subtask
             </Button>
@@ -743,69 +781,45 @@ export function EventEditor({
   );
   if (desktopEntry)
     return (
-      <>
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          style={{ flexGrow: 0 }}
-          contentContainerStyle={{ gap: 14, padding: 2, paddingBottom: 16 }}
-        >
-          {titleField}
-          {quickEntry.expanded ? (
-            <EntryFields>
-              {fields}
-              {error ? (
-                <Text accessibilityRole="alert" style={{ color: t.danger }}>
-                  {error}
-                </Text>
-              ) : null}
-              <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-              >
-                {action}
-                <Button compact variant="ghost" onPress={guard.requestClose}>
-                  Collapse
-                </Button>
-              </View>
-            </EntryFields>
-          ) : null}
-        </ScrollView>
-        {guard.confirmation}
-      </>
-    );
-  return (
-    <>
-      <Sheet
-        visible
-        large
-        title={heading}
-        presentation={presentation}
-        error={error}
-        onClose={guard.requestClose}
-        action={action}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        style={{ flexGrow: 0 }}
+        contentContainerStyle={{ gap: 14, padding: 2, paddingBottom: 16 }}
       >
         {titleField}
-        {fields}
-      </Sheet>
-      {guard.confirmation}
-    </>
+        {quickEntry.expanded ? (
+          <EnterTransition style={{ gap: 14 }}>
+            {fields}
+            {error ? (
+              <Text accessibilityRole="alert" style={{ color: t.danger }}>
+                {error}
+              </Text>
+            ) : null}
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+            >
+              {action}
+              <Button compact variant="ghost" onPress={close}>
+                Collapse
+              </Button>
+            </View>
+          </EnterTransition>
+        ) : null}
+      </ScrollView>
+    );
+  return (
+    <Sheet
+      visible
+      large
+      title={heading}
+      presentation={presentation}
+      error={error}
+      onClose={close}
+      action={action}
+    >
+      {titleField}
+      {fields}
+    </Sheet>
   );
-}
-
-function EntryFields({ children }: PropsWithChildren) {
-  const { reduceMotion } = useTheme();
-  const [opacity] = useState(() => new Animated.Value(reduceMotion ? 1 : 0));
-  useEffect(() => {
-    if (reduceMotion) {
-      opacity.setValue(1);
-      return;
-    }
-    const fade = Animated.timing(opacity, {
-      toValue: 1,
-      duration: 140,
-      useNativeDriver: Platform.OS !== "web",
-    });
-    fade.start();
-    return () => fade.stop();
-  }, [opacity, reduceMotion]);
-  return <Animated.View style={{ opacity, gap: 14 }}>{children}</Animated.View>;
 }

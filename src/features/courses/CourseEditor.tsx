@@ -13,7 +13,6 @@ import {
 } from "../../ui/primitives";
 import { useTheme } from "../../ui/theme";
 import { SemesterEditor } from "../semesters/SemesterEditor";
-import { useDraftGuard } from "../../ui/useDraftGuard";
 
 export function CourseEditor({
   course,
@@ -51,12 +50,6 @@ export function CourseEditor({
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [initial] = useState(() => JSON.stringify(draft));
-  const guard = useDraftGuard(
-    !creatingSemester && initial !== JSON.stringify(draft),
-    busy,
-    onClose,
-  );
   const patch = (value: Partial<Course>) =>
     setDraft((d) => ({ ...d, ...value }));
   const semester = semesters.find((s) => s.id === draft.semester_id);
@@ -76,10 +69,8 @@ export function CourseEditor({
     setError("");
     try {
       await saveCourse(draft);
-      guard.finish(() => {
-        onSaved?.(draft);
-        onClose();
-      });
+      onSaved?.(draft);
+      onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save course.");
     } finally {
@@ -91,7 +82,9 @@ export function CourseEditor({
       <Sheet
         visible
         title={course ? "Edit course" : "New course"}
-        onClose={guard.requestClose}
+        onClose={() => {
+          if (!busy) onClose();
+        }}
         action={
           <Button
             compact
@@ -244,7 +237,6 @@ export function CourseEditor({
           </Text>
         ) : null}
       </Sheet>
-      {guard.confirmation}
     </>
   );
 }
