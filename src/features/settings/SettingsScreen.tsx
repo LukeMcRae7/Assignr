@@ -1,6 +1,6 @@
 import { ReactNode, useState } from "react";
 import { Pressable, Switch, View } from "react-native";
-import { CLASS_KINDS, COURSE_COLORS } from "../../domain/model";
+import { COURSE_COLORS } from "../../domain/model";
 import { isTime, displayWallTime } from "../../domain/dates";
 import { useAuth } from "../../providers/AuthProvider";
 import { useWorkspace } from "../../providers/WorkspaceProvider";
@@ -131,21 +131,6 @@ export function SettingsScreen() {
               "Highlight exams",
               p.highlight_exams,
               (highlight_exams) => update({ highlight_exams }),
-            )}
-          />
-          <Setting
-            icon="calendar-clock-outline"
-            title="Show classes in Calendar"
-            description="Include your regular weekly classes"
-            control={toggle(
-              "Show classes in Calendar",
-              CLASS_KINDS.every((k) => p.calendar_types.includes(k)),
-              (show) =>
-                update({
-                  calendar_types: show
-                    ? [...new Set([...p.calendar_types, ...CLASS_KINDS])]
-                    : p.calendar_types.filter((k) => !CLASS_KINDS.includes(k)),
-                }),
             )}
           />
         </View>

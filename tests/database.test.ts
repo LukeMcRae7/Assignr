@@ -58,6 +58,49 @@ test("Postgres migration, access policies, and mutation RPC", async (t) => {
         assert.equal((await db.query("select * from courses")).rows.length, 1);
       },
     );
+    await t.test(
+      "custom event types and their filters survive a sync round trip",
+      async () => {
+        const id = randomUUID();
+        await apply(
+          {
+            id,
+            user_id: alice,
+            course_id: courseId,
+            title: "Week one",
+            kind: "assignment",
+            custom_type: "Reading",
+            due_at: "2026-11-20T12:00:00.000Z",
+            subtasks: [],
+            cancelled: false,
+          },
+          0,
+          randomUUID(),
+          "events",
+        );
+        await apply(
+          {
+            id: alice,
+            user_id: alice,
+            theme: "system",
+            custom_type_visibility: { "assignments:reading": false },
+          },
+          0,
+          randomUUID(),
+          "preferences",
+        );
+        const event = await db.query<{ label: string }>(
+          "select payload->>'custom_type' as label from events where id = $1",
+          [id],
+        );
+        assert.equal(event.rows[0].label, "Reading");
+        const pref = await db.query<{ visible: boolean }>(
+          "select (payload->'custom_type_visibility'->>'assignments:reading')::boolean as visible from preferences where id = $1",
+          [alice],
+        );
+        assert.equal(pref.rows[0].visible, false);
+      },
+    );
     await t.test("stale edits cannot overwrite newer data", async () => {
       await assert.rejects(
         apply({ ...course, name: "Stale" }),

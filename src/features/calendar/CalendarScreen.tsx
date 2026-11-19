@@ -1,10 +1,17 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, View, useWindowDimensions } from "react-native";
-import { addMonths, format, parseISO, startOfMonth } from "date-fns";
+import {
+  addMonths,
+  format,
+  getDaysInMonth,
+  parseISO,
+  startOfMonth,
+} from "date-fns";
 import { router } from "expo-router";
-import { addDateDays, dayKey, weekday, zonedISO } from "../../domain/dates";
-import { EVENT_KINDS, EventKind, Occurrence } from "../../domain/model";
-import { expandEvents, occurrencesOnDate } from "../../domain/schedule";
+import { addDateDays, dayKey, weekday } from "../../domain/dates";
+import { EventKind, Occurrence, StudyEvent } from "../../domain/model";
+import { calendarVisible, typeKey, usedTypes } from "../../domain/eventEditor";
+import { calendarDays } from "../../domain/calendar";
 import { useWorkspace } from "../../providers/WorkspaceProvider";
 import {
   Button,
@@ -30,12 +37,18 @@ const typeLabels: Record<EventKind, string> = {
   tutorial: "Tutorials",
   seminar: "Seminars",
   lab: "Labs",
-  activity: "Personal events",
+  activity: "Events",
 };
 export function CalendarScreen() {
-  const { events, preferences: p, updatePreferences, perform } = useWorkspace();
+  const {
+    events,
+    courses,
+    preferences: p,
+    updatePreferences,
+    perform,
+  } = useWorkspace();
   const t = useTheme();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const today = dayKey(new Date(), p.timezone);
   const [month, setMonth] = useState(startOfMonth(parseISO(today)));
   const [selected, setSelected] = useState(today);
@@ -44,21 +57,21 @@ export function CalendarScreen() {
   const [detail, setDetail] = useState<Occurrence | null>(null);
   const [detailEditing, setDetailEditing] = useState(false);
   const panelOpen = composing || !!detail;
-  const wide = width >= 1200 && !panelOpen;
+  const desktop = width >= 1100;
+  const wide = desktop && !panelOpen;
+  const types = useMemo(() => usedTypes(events), [events]);
+  const eventColor = (e: StudyEvent) =>
+    e.kind === "exam" && p.highlight_exams
+      ? t.danger
+      : courses.find((c) => c.id === e.course_id)?.color || t.accent;
   const first = format(month, "yyyy-MM-dd");
   const gridStart = addDateDays(first, -weekday(first));
-  const dates = Array.from({ length: 42 }, (_, i) => addDateDays(gridStart, i));
-  const all = expandEvents(
-    events,
-    new Date(zonedISO(gridStart, "00:00", p.timezone)),
-    new Date(zonedISO(addDateDays(gridStart, 42), "00:00", p.timezone)),
+  const days = Math.ceil((weekday(first) + getDaysInMonth(month)) / 7) * 7;
+  const dates = Array.from({ length: days }, (_, i) =>
+    addDateDays(gridStart, i),
   );
-  const visible = all.filter(
-    (o) => p.calendar_types.includes(o.event.kind) && !o.event.completed,
-  );
-  const selectedEvents = occurrencesOnDate(events, selected, p.timezone).filter(
-    (o) => p.calendar_types.includes(o.event.kind) && !o.event.completed,
-  );
+  const byDay = calendarDays(events, gridStart, days, p);
+  const selectedEvents = byDay.get(selected) || [];
   function navigateMonth(direction: number) {
     const next = addMonths(month, direction);
     setMonth(next);
@@ -67,6 +80,7 @@ export function CalendarScreen() {
   return (
     <Screen
       title="Calendar"
+      fluid={desktop}
       aside={
         composing ? (
           <EventEditor
@@ -92,6 +106,11 @@ export function CalendarScreen() {
       }
       actions={
         <>
+          {desktop && !panelOpen ? (
+            <Button compact icon="plus" onPress={() => setComposing(true)}>
+              Add event
+            </Button>
+          ) : null}
           <IconButton
             icon="calendar-today"
             label="Go to today"
@@ -103,24 +122,23 @@ export function CalendarScreen() {
           <IconButton
             icon="filter-variant"
             label="Calendar visibility"
+            disabled={!types.length}
             onPress={() => setFilters(true)}
           />
         </>
       }
       floating={
-        !panelOpen ? (
+        !desktop && !panelOpen ? (
           <Fab
             onPress={() =>
-              width >= 1100
-                ? setComposing(true)
-                : router.push({
-                    pathname: "/event/new",
-                    params: {
-                      date: selected,
-                      kind: "activity",
-                      context: "general",
-                    },
-                  })
+              router.push({
+                pathname: "/event/new",
+                params: {
+                  date: selected,
+                  kind: "activity",
+                  context: "general",
+                },
+              })
             }
           />
         ) : undefined
@@ -180,12 +198,15 @@ export function CalendarScreen() {
           <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
             {dates.map((date) => {
               const inMonth = date.slice(0, 7) === first.slice(0, 7);
-              const onDate = visible.filter(
-                (o) =>
-                  dayKey(new Date(o.starts_at || o.due_at!), p.timezone) ===
-                  date,
-              );
-              const exam = onDate.some((o) => o.event.kind === "exam");
+              const onDate = byDay.get(date) || [];
+              const previews =
+                p.highlight_exams && onDate.some((o) => o.event.kind === "exam")
+                  ? [...onDate].sort(
+                      (a, b) =>
+                        Number(b.event.kind === "exam") -
+                        Number(a.event.kind === "exam"),
+                    )
+                  : onDate;
               return (
                 <Pressable
                   key={date}
@@ -201,10 +222,18 @@ export function CalendarScreen() {
                   }}
                   style={{
                     width: `${100 / 7}%`,
-                    minHeight: width < 400 ? 52 : 64,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: 4,
+                    minHeight: desktop
+                      ? Math.max(80, Math.min(160, (height - 215) / (days / 7)))
+                      : width < 400
+                        ? 46
+                        : 54,
+                    padding: desktop ? 5 : 0,
+                    borderColor:
+                      selected === date && desktop ? t.accent : t.border,
+                    borderWidth: desktop ? 0.5 : 0,
+                    alignItems: desktop ? "flex-start" : "center",
+                    justifyContent: desktop ? "flex-start" : "center",
+                    gap: 3,
                   }}
                 >
                   <View
@@ -239,59 +268,60 @@ export function CalendarScreen() {
                       {Number(date.slice(-2))}
                     </Text>
                   </View>
-                  <View style={{ height: 5, flexDirection: "row", gap: 3 }}>
-                    {onDate.slice(0, 3).map((o, i) => (
-                      <View
-                        key={`${o.key}:${i}`}
-                        style={{
-                          width: 4,
-                          height: 4,
-                          borderRadius: 2,
-                          backgroundColor:
-                            exam && p.highlight_exams ? t.danger : t.accent,
-                        }}
-                      />
-                    ))}
-                  </View>
+                  {desktop ? (
+                    <View style={{ alignSelf: "stretch", gap: 2 }}>
+                      {previews.slice(0, 2).map(({ key, event }) => (
+                        <Text
+                          key={key}
+                          numberOfLines={1}
+                          style={{
+                            fontSize: 11,
+                            lineHeight: 16,
+                            paddingHorizontal: 4,
+                            borderLeftWidth: 2,
+                            borderColor: eventColor(event),
+                            backgroundColor: blend(
+                              eventColor(event),
+                              t.background,
+                              0.12,
+                            ),
+                          }}
+                        >
+                          {event.title}
+                        </Text>
+                      ))}
+                      {onDate.length > 2 ? (
+                        <Text muted style={{ fontSize: 10 }}>
+                          +{onDate.length - 2}
+                        </Text>
+                      ) : null}
+                    </View>
+                  ) : (
+                    <View style={{ height: 5, flexDirection: "row", gap: 3 }}>
+                      {previews.slice(0, 3).map((o, i) => (
+                        <View
+                          key={`${o.key}:${i}`}
+                          style={{
+                            width: 4,
+                            height: 4,
+                            borderRadius: 2,
+                            backgroundColor: eventColor(o.event),
+                          }}
+                        />
+                      ))}
+                    </View>
+                  )}
                 </Pressable>
               );
             })}
           </View>
-          <View
-            style={{
-              flexDirection: "row",
-              justifyContent: "center",
-              alignItems: "center",
-              gap: 7,
-              marginTop: 14,
-            }}
-          >
-            <View
-              style={{
-                width: 5,
-                height: 5,
-                borderRadius: 3,
-                backgroundColor: t.danger,
-              }}
-            />
-            <Text muted style={{ fontSize: 11 }}>
-              Exam
-            </Text>
-            <View
-              style={{
-                width: 5,
-                height: 5,
-                borderRadius: 3,
-                backgroundColor: t.accent,
-                marginLeft: 12,
-              }}
-            />
-            <Text muted style={{ fontSize: 11 }}>
-              Event or deadline
-            </Text>
-          </View>
         </View>
-        <View style={{ width: wide ? 370 : "100%", gap: 22 }}>
+        <View
+          style={{
+            width: wide ? Math.min(320, width * 0.22) : "100%",
+            gap: 22,
+          }}
+        >
           <Text
             style={{
               fontSize: 18,
@@ -304,39 +334,36 @@ export function CalendarScreen() {
           {!selectedEvents.length ? (
             <EmptyState
               icon="calendar-blank-outline"
-              title="A clear calendar"
-              description="No visible events on this day. Add a plan or change the calendar filters."
+              title="No events on this day"
             />
           ) : (
-            (
-              [
-                "exam",
-                "quiz",
-                "assignment",
-                "activity",
-                "lecture",
-                "tutorial",
-                "seminar",
-                "lab",
-              ] as EventKind[]
-            ).map((kind) => {
-              const items = selectedEvents.filter((o) => o.event.kind === kind);
-              return items.length ? (
-                <View key={kind} style={{ gap: 8 }}>
-                  <SectionTitle>{typeLabels[kind]}</SectionTitle>
-                  {items.map((o) => (
-                    <EventRow
-                      key={o.key}
-                      occurrence={o}
-                      disabled={composing || detailEditing}
-                      onOpen={
-                        width >= 1100 ? (item) => setDetail(item) : undefined
-                      }
-                    />
-                  ))}
-                </View>
-              ) : null;
-            })
+            [...types]
+              .sort(
+                (a, b) => Number(b.kind === "exam") - Number(a.kind === "exam"),
+              )
+              .map((type) => {
+                const key = typeKey(type);
+                const items = selectedEvents.filter(
+                  (o) => typeKey(o.event) === key,
+                );
+                return items.length ? (
+                  <View key={key} style={{ gap: 8 }}>
+                    <SectionTitle>
+                      {type.custom_type || typeLabels[type.kind]}
+                    </SectionTitle>
+                    {items.map((o) => (
+                      <EventRow
+                        key={o.key}
+                        occurrence={o}
+                        disabled={composing || detailEditing}
+                        onOpen={
+                          width >= 1100 ? (item) => setDetail(item) : undefined
+                        }
+                      />
+                    ))}
+                  </View>
+                ) : null;
+              })
           )}
         </View>
       </View>
@@ -346,30 +373,43 @@ export function CalendarScreen() {
           title="Show in Calendar"
           onClose={() => setFilters(false)}
         >
-          <Text muted style={{ fontSize: 14 }}>
-            Keep important dates in view. Your full class schedule always
-            appears in Today.
-          </Text>
-          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
-            {EVENT_KINDS.map((kind) => (
-              <Chip
-                key={kind}
-                selected={p.calendar_types.includes(kind)}
-                onPress={() => {
-                  void perform(() =>
-                    updatePreferences({
-                      calendar_types: p.calendar_types.includes(kind)
-                        ? p.calendar_types.filter((k) => k !== kind)
-                        : [...p.calendar_types, kind],
-                    }),
-                  );
-                }}
-              >
-                {typeLabels[kind]}
-              </Chip>
-            ))}
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+            {types.map((type) => {
+              const key = typeKey(type);
+              const selected = calendarVisible(type, p);
+              return (
+                <Chip
+                  key={key}
+                  selected={selected}
+                  onPress={() => {
+                    void perform(() =>
+                      updatePreferences(
+                        type.custom_type
+                          ? {
+                              custom_type_visibility: {
+                                ...p.custom_type_visibility,
+                                [key]: !selected,
+                              },
+                            }
+                          : {
+                              calendar_types: selected
+                                ? p.calendar_types.filter(
+                                    (k) => k !== type.kind,
+                                  )
+                                : [...p.calendar_types, type.kind],
+                            },
+                      ),
+                    );
+                  }}
+                >
+                  {type.custom_type || typeLabels[type.kind]}
+                </Chip>
+              );
+            })}
+            {!types.length ? (
+              <Text muted>Add an event to see its filter here.</Text>
+            ) : null}
           </View>
-          <Button onPress={() => setFilters(false)}>Done</Button>
         </Sheet>
       ) : null}
     </Screen>

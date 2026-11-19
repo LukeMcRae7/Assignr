@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Pressable, View, useWindowDimensions } from "react-native";
 import { router } from "expo-router";
+import { addDateDays, dayKey, weekday } from "../../domain/dates";
 import { assignmentsByDueDate } from "../../domain/schedule";
 import { useWorkspace } from "../../providers/WorkspaceProvider";
 import { AssignmentRow } from "../events/EventRows";
@@ -18,25 +19,28 @@ import {
 import { useTheme } from "../../ui/theme";
 import { EventEditor } from "../events/EventEditor";
 import { CourseEditor } from "../courses/CourseEditor";
-import { SemesterSelector } from "../semesters/SemesterSelector";
-import { semesterStatus } from "../../domain/semesters";
+import { Course, StudyEvent } from "../../domain/model";
+import {
+  defaultSemester,
+  groupAssignmentsBySemester,
+  semesterStatus,
+} from "../../domain/semesters";
 
 export function AssignmentsScreen() {
   const {
     courses,
     semesters,
-    selectedSemester,
     events,
     preferences: p,
     updatePreferences,
     perform,
   } = useWorkspace();
-  const t = useTheme();
   const { width } = useWindowDimensions();
+  const [draftNumber, setDraftNumber] = useState(0);
   const [composing, setComposing] = useState(false);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [filters, setFilters] = useState(false);
   const [completed, setCompleted] = useState(false);
+  const [period, setPeriod] = useState("All");
   const [priority, setPriority] = useState(false);
   const [newCourse, setNewCourse] = useState(false);
   const allAssignments = useMemo(
@@ -46,80 +50,71 @@ export function AssignmentsScreen() {
       ),
     [events, completed, priority],
   );
-  const courseSemester = (courseId: string | null) =>
-    courses.find((c) => c.id === courseId)?.semester_id;
-  const assignments = allAssignments.filter(
-    (e) =>
-      !courseSemester(e.course_id) ||
-      courseSemester(e.course_id) === selectedSemester?.id,
-  );
-  const pastAssignments = allAssignments.filter((e) => {
-    const semester = semesters.find(
-      (s) => s.id === courseSemester(e.course_id),
-    );
-    return (
-      !e.completed &&
-      semester &&
-      semester.id !== selectedSemester?.id &&
-      semesterStatus(semester) === "Past"
-    );
+  const now = new Date();
+  const today = dayKey(now, p.timezone);
+  const weekEnd = addDateDays(today, 6 - ((weekday(today) + 6) % 7));
+  const visible = allAssignments.filter((event) => {
+    if (width < 1100 || period === "All") return true;
+    if (!event.due_at) return false;
+    if (period === "Overdue")
+      return !event.completed && event.due_at < now.toISOString();
+    const due = dayKey(new Date(event.due_at), p.timezone);
+    return period === "Today" ? due === today : due >= today && due <= weekEnd;
   });
-  const groups = [
-    ...courses.map((c) => ({
-      id: c.id,
-      name: c.name,
-      icon: c.icon,
-      color: c.color,
-    })),
-    {
-      id: "personal",
-      name: "Personal",
-      icon: "notebook-outline",
-      color: t.accent,
-    },
-  ]
-    .map((c) => ({
-      ...c,
-      assignments: assignments.filter(
-        (e) => (e.course_id || "personal") === c.id,
-      ),
-    }))
-    .filter((c) => c.assignments.length);
+  const defaultTerm = defaultSemester(semesters, now);
+  const currentTerm =
+    defaultTerm && semesterStatus(defaultTerm, now) !== "Past"
+      ? defaultTerm
+      : null;
+  const { primary: assignments, others } = groupAssignmentsBySemester(
+    visible,
+    courses,
+    semesters,
+    currentTerm?.id,
+  );
   const create = () =>
-    width >= 1100 ? setComposing(true) : router.push("/event/new");
+    width >= 1100
+      ? setComposing(true)
+      : router.push({
+          pathname: "/event/new",
+          params: { semesterId: defaultTerm?.id },
+        });
   return (
     <Screen
       title="ToDo"
+      fluid={width >= 1100}
       aside={
-        composing ? (
+        composing || width >= 1100 ? (
           <EventEditor
+            key={draftNumber}
+            quickEntry={{
+              expanded: composing,
+              expand: () => setComposing(true),
+            }}
+            semesterId={defaultTerm?.id}
             kind="assignment"
             context="assignments"
             presentation="inline"
-            onClose={() => setComposing(false)}
-          />
-        ) : width >= 1100 ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Add assignment"
-            onPress={() => setComposing(true)}
-            style={{
-              minHeight: 52,
-              padding: 16,
-              borderRadius: 12,
-              backgroundColor: t.surface,
-              borderWidth: 1,
-              borderColor: t.border,
+            onClose={() => {
+              setComposing(false);
+              setDraftNumber((n) => n + 1);
             }}
-          >
-            <Text muted style={{ fontSize: 14 }}>
-              Add assignment
-            </Text>
-          </Pressable>
+          />
         ) : undefined
       }
       actions={
         <>
+          {width >= 1100
+            ? ["All", "Overdue", "Today", "This week"].map((label) => (
+                <Chip
+                  key={label}
+                  selected={period === label}
+                  onPress={() => setPeriod(label)}
+                >
+                  {label}
+                </Chip>
+              ))
+            : null}
           <IconButton
             label="Flat assignment list"
             icon="format-list-bulleted"
@@ -154,158 +149,56 @@ export function AssignmentsScreen() {
         ) : undefined
       }
     >
-      {semesters.length ? <SemesterSelector /> : null}
       {!courses.length && !events.length ? (
         <EmptyState
           icon="school-outline"
-          title="A little structure. A clearer day."
-          description="Add your first course, then bring your classes, deadlines, and plans into one place."
+          title="Create your first course"
+          description="Start with a course to organize your classes and assignments."
           action={
             <Button icon="plus" onPress={() => setNewCourse(true)}>
               Create your first course
             </Button>
           }
         />
-      ) : !assignments.length ? (
+      ) : !visible.length ? (
         <EmptyState
           icon="check-all"
           title={
-            priority
-              ? "No high-priority assignments"
-              : pastAssignments.length
-                ? "No assignments in this semester"
+            width >= 1100 && period !== "All"
+              ? "No assignments in this view"
+              : priority
+                ? "No high-priority assignments"
                 : "You’re all caught up"
           }
           description={
             priority
               ? "Change your filters to see more assignments."
-              : "Your next assignment will appear here. Enjoy the breathing room."
-          }
-          action={
-            <Button variant="secondary" icon="plus" onPress={create}>
-              Add assignment
-            </Button>
+              : undefined
           }
         />
-      ) : p.group_assignments ? (
-        <View style={{ gap: 18 }}>
-          {groups.map((group) => {
-            const closed = collapsed.has(group.id);
-            return (
-              <View
-                key={group.id}
-                style={{
-                  borderWidth: 1,
-                  borderColor: t.border,
-                  borderRadius: 16,
-                  overflow: "hidden",
-                  borderLeftWidth: 4,
-                  borderLeftColor: group.color,
-                }}
-              >
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={`${closed ? "Expand" : "Collapse"} ${group.name}`}
-                  accessibilityState={{ expanded: !closed }}
-                  aria-expanded={!closed}
-                  onPress={() =>
-                    setCollapsed((old) => {
-                      const next = new Set(old);
-                      if (next.has(group.id)) next.delete(group.id);
-                      else next.add(group.id);
-                      return next;
-                    })
-                  }
-                  style={{
-                    padding: 18,
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 13,
-                  }}
-                >
-                  <View
-                    style={{
-                      width: 42,
-                      height: 42,
-                      borderRadius: 12,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      backgroundColor: t.surface,
-                    }}
-                  >
-                    <Icon name={group.icon} size={23} />
-                  </View>
-                  <View style={{ flex: 1, gap: 1 }}>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        gap: 9,
-                        alignItems: "center",
-                      }}
-                    >
-                      <Text
-                        style={{
-                          fontSize: 17,
-                          fontWeight: "600",
-                          flexShrink: 1,
-                        }}
-                      >
-                        {group.name}
-                      </Text>
-                      <View
-                        style={{
-                          borderRadius: 8,
-                          backgroundColor: t.elevated,
-                          paddingHorizontal: 8,
-                        }}
-                      >
-                        <Text muted style={{ fontSize: 12 }}>
-                          {group.assignments.length}
-                        </Text>
-                      </View>
-                    </View>
-                    <Text muted style={{ fontSize: 12 }}>
-                      {closed ? "Tap to view assignments" : "Tap to collapse"}
-                    </Text>
-                  </View>
-                  <Icon
-                    name={closed ? "chevron-down" : "chevron-up"}
-                    size={22}
-                  />
-                </Pressable>
-                {!closed ? (
-                  <View style={{ paddingHorizontal: 16, paddingBottom: 6 }}>
-                    {group.assignments.map((event) => (
-                      <AssignmentRow key={event.id} event={event} />
-                    ))}
-                  </View>
-                ) : null}
-              </View>
-            );
-          })}
-        </View>
-      ) : (
-        <View>
-          {assignments.map((event) => (
-            <View
-              key={event.id}
-              style={{ borderBottomWidth: 1, borderColor: t.border }}
-            >
-              <AssignmentRow event={event} showCourse />
-            </View>
-          ))}
-        </View>
-      )}
-      {pastAssignments.length ? (
-        <View style={{ gap: 10 }}>
-          <Text style={{ fontSize: 20, fontWeight: "600" }}>
-            Unfinished from past semesters
-          </Text>
-          {pastAssignments.map((event) => (
-            <AssignmentRow key={event.id} event={event} showCourse />
-          ))}
-        </View>
+      ) : assignments.length ? (
+        <AssignmentList
+          assignments={assignments}
+          courses={courses}
+          grouped={p.group_assignments}
+        />
       ) : null}
+      {others.map(({ semester, assignments }) => (
+        <View key={semester.id} style={{ gap: 8 }}>
+          <Text
+            muted
+            accessibilityRole="header"
+            style={{ fontSize: 15, fontWeight: "600" }}
+          >
+            {semester.name}
+          </Text>
+          <AssignmentList
+            assignments={assignments}
+            courses={courses}
+            grouped={p.group_assignments}
+          />
+        </View>
+      ))}
       {filters ? (
         <Sheet
           visible
@@ -328,5 +221,143 @@ export function AssignmentsScreen() {
         />
       ) : null}
     </Screen>
+  );
+}
+
+function AssignmentList({
+  assignments,
+  courses,
+  grouped,
+}: {
+  assignments: StudyEvent[];
+  courses: Course[];
+  grouped: boolean;
+}) {
+  const t = useTheme();
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const groups = [
+    ...courses.map((c) => ({
+      id: c.id,
+      name: c.name,
+      icon: c.icon,
+      color: c.color,
+    })),
+    {
+      id: "personal",
+      name: "Personal",
+      icon: "notebook-outline",
+      color: t.accent,
+    },
+  ]
+    .map((c) => ({
+      ...c,
+      assignments: assignments.filter(
+        (e) => (e.course_id || "personal") === c.id,
+      ),
+    }))
+    .filter((c) => c.assignments.length);
+  return grouped ? (
+    <View style={{ gap: 18 }}>
+      {groups.map((group) => {
+        const closed = collapsed.has(group.id);
+        return (
+          <View
+            key={group.id}
+            style={{
+              borderWidth: 1,
+              borderColor: t.border,
+              borderRadius: 16,
+              overflow: "hidden",
+              borderLeftWidth: 4,
+              borderLeftColor: group.color,
+            }}
+          >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${closed ? "Expand" : "Collapse"} ${group.name}`}
+              accessibilityState={{ expanded: !closed }}
+              aria-expanded={!closed}
+              onPress={() =>
+                setCollapsed((old) => {
+                  const next = new Set(old);
+                  if (next.has(group.id)) next.delete(group.id);
+                  else next.add(group.id);
+                  return next;
+                })
+              }
+              style={{
+                paddingVertical: 8,
+                paddingHorizontal: 14,
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 13,
+              }}
+            >
+              <View
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 12,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: t.surface,
+                }}
+              >
+                <Icon name={group.icon} size={23} />
+              </View>
+              <View style={{ flex: 1, gap: 1 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    gap: 9,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 17,
+                      fontWeight: "600",
+                      flexShrink: 1,
+                    }}
+                  >
+                    {group.name}
+                  </Text>
+                  <View
+                    style={{
+                      borderRadius: 8,
+                      backgroundColor: t.elevated,
+                      paddingHorizontal: 8,
+                    }}
+                  >
+                    <Text muted style={{ fontSize: 12 }}>
+                      {group.assignments.length}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+              <Icon name={closed ? "chevron-down" : "chevron-up"} size={22} />
+            </Pressable>
+            {!closed ? (
+              <View style={{ paddingHorizontal: 16, paddingBottom: 6 }}>
+                {group.assignments.map((event) => (
+                  <AssignmentRow key={event.id} event={event} />
+                ))}
+              </View>
+            ) : null}
+          </View>
+        );
+      })}
+    </View>
+  ) : (
+    <View>
+      {assignments.map((event) => (
+        <View
+          key={event.id}
+          style={{ borderBottomWidth: 1, borderColor: t.border }}
+        >
+          <AssignmentRow event={event} showCourse />
+        </View>
+      ))}
+    </View>
   );
 }

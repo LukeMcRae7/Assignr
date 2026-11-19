@@ -123,16 +123,15 @@ test("long event forms keep fields separate and actions reachable", async ({
   await seed(page);
   await page.goto("/event/new?kind=assignment&courseId=course");
   await page.getByLabel("Title", { exact: true }).fill("Research project");
-  await expect(page.getByTestId("editor-types")).toHaveCount(0);
+  await expect(page.getByTestId("editor-types").getByText("Lab")).toHaveCount(
+    0,
+  );
   await expect(
-    page.getByRole("button", { name: "Choose course", exact: true }),
-  ).toContainText("Computer Systems");
+    page.getByRole("button", { name: "Course Computer Systems", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByText("CMPT 295", { exact: true })).toBeVisible();
   await assertFormLayout(page);
   await page.screenshot({ path: info.outputPath("event-editor.png") });
-  await page
-    .getByRole("button", { name: "Choose course", exact: true })
-    .click();
   await page
     .getByRole("button", { name: "Course Data Structures", exact: true })
     .click();
@@ -227,19 +226,31 @@ test("drafts survive cancellation and confirm before navigating away", async ({
 }, info) => {
   await seed(page);
   await page.goto("/");
-  await page
-    .getByRole("button", { name: "Add assignment", exact: true })
-    .click();
-  await page.getByLabel("Title", { exact: true }).fill("Unsaved assignment");
+  const desktop = (page.viewportSize()?.width || 0) >= 1100;
+  const title = page.getByRole("textbox", {
+    name: desktop ? "Assignment name" : "Title",
+    exact: true,
+  });
+  if (desktop) {
+    await expect(page.getByTestId("editor-course")).toHaveCount(0);
+    await title.focus();
+    await expect(title).toBeFocused();
+  } else {
+    await page
+      .getByRole("button", { name: "Add assignment", exact: true })
+      .click();
+  }
+  await title.pressSequentially("Unsaved assignment");
   await page.screenshot({ path: info.outputPath("assignment-composer.png") });
-  await page
-    .getByTestId("form-header")
-    .getByRole("button", { name: "Close", exact: true })
-    .click();
+  if (desktop)
+    await page.getByRole("button", { name: "Collapse", exact: true }).click();
+  else
+    await page
+      .getByTestId("form-header")
+      .getByRole("button", { name: "Close", exact: true })
+      .click();
   await page.getByRole("button", { name: "Keep editing", exact: true }).click();
-  await expect(page.getByLabel("Title", { exact: true })).toHaveValue(
-    "Unsaved assignment",
-  );
+  await expect(title).toHaveValue("Unsaved assignment");
   if ((page.viewportSize()?.width || 0) >= 1100) {
     await page.getByRole("link", { name: "Calendar", exact: true }).click();
   } else {
@@ -338,4 +349,118 @@ test("editing legacy subtasks preserves dates and normalizes only the saved even
   );
   expect(snapshot.events[0].subtasks[0].target_date).toBe("2026-11-17");
   expect(snapshot.events[0].subtasks[0].target_at).toBeUndefined();
+});
+
+test("custom types follow their course section and last through the last event using them", async ({
+  page,
+}) => {
+  await seed(page);
+  const button = (name: string) =>
+    page.getByRole("button", { name, exact: true });
+  await page.goto("/courses/course");
+  await button("Add assignment").click();
+  await expect(button("Lecture")).toHaveCount(0);
+  await button("Other").click();
+  await page.getByLabel("Type name", { exact: true }).fill("Reading");
+  await page.getByLabel("Title", { exact: true }).fill("Week one");
+  await page.getByLabel("Due date", { exact: true }).fill("2025-01-15");
+  await button("Create reading").click();
+  await button("Add assessment").click();
+  await expect(button("Reading")).toHaveCount(0);
+  await expect(button("Exam")).toBeVisible();
+  await button("Close").click();
+  await button("Add assignment").click();
+  await button("Reading").click();
+  await page.getByLabel("Title", { exact: true }).fill("Week two");
+  await button("Create reading").click();
+  await page.goto("/calendar");
+  await button("Calendar visibility").click();
+  await expect(button("Reading")).toHaveAttribute("aria-pressed", "true");
+  await expect(button("Labs")).toHaveCount(0);
+  await button("Reading").click();
+  await expect(button("Assignments")).toHaveAttribute("aria-pressed", "true");
+  await button("Close").click();
+  await page.goto("/courses/course");
+  for (const title of ["Week two", "Week one"]) {
+    await button("Open " + title).click();
+    await button("More event actions").click();
+    await button("Delete event").click();
+    await page
+      .getByRole("dialog")
+      .last()
+      .getByRole("button", { name: "Delete", exact: true })
+      .click();
+    await button("Add assignment").click();
+    await expect(button("Reading")).toHaveCount(title === "Week two" ? 1 : 0);
+    await button("Close").click();
+  }
+  await page.goto("/calendar");
+  await button("Calendar visibility").click();
+  await expect(button("Reading")).toHaveCount(0);
+});
+
+test("ToDo keeps personal and current tasks first while browsing another semester", async ({
+  page,
+}) => {
+  await seed(page);
+  await page.goto("/");
+  await page.evaluate(() => {
+    const key = "assignr:v1:local";
+    const cache = JSON.parse(localStorage.getItem(key)!);
+    const { semesters, courses, events } = cache.snapshot;
+    for (const [id, name, year] of [
+      ["past", "Fall 2025", "2025"],
+      ["future", "Fall 2027", "2027"],
+    ]) {
+      semesters.push({
+        ...semesters[0],
+        id,
+        name,
+        start_date: year + "-09-01",
+        end_date: year + "-12-18",
+      });
+      courses.push({
+        ...courses[0],
+        id,
+        name: name + " course",
+        semester_id: id,
+      });
+      events.push({
+        ...events[0],
+        id,
+        course_id: id,
+        title: id + " work",
+        due_at: year + "-11-01T12:00:00Z",
+      });
+    }
+    events.push({
+      ...events[0],
+      id: "personal",
+      course_id: null,
+      title: "Independent reading",
+    });
+    localStorage.setItem(key, JSON.stringify(cache));
+  });
+  await page.goto("/courses");
+  await page.getByTestId("semester-selector").click();
+  await page.getByRole("button", { name: "Fall 2027", exact: true }).click();
+  await page.getByRole("link", { name: "ToDo", exact: true }).click();
+  await expect(page.getByTestId("semester-selector")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Fall 2027", exact: true }),
+  ).toHaveCount(0);
+  for (const layout of ["Group by course", "Flat assignment list"]) {
+    await page.getByRole("button", { name: layout, exact: true }).click();
+    const rows = await page
+      .getByRole("button", { name: /^Open / })
+      .evaluateAll((rows) => rows.map((row) => row.getAttribute("aria-label")));
+    expect(rows.slice(0, 2).sort()).toEqual([
+      "Open Independent reading",
+      "Open Reading reflection",
+    ]);
+    expect(rows.slice(2)).toEqual(["Open past work", "Open future work"]);
+    await expect(
+      page.getByRole("heading", { name: "Fall 2027", exact: true }),
+    ).toBeVisible();
+  }
 });

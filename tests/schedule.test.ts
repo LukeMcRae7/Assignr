@@ -1,3 +1,5 @@
+import { calendarDays } from "../src/domain/calendar";
+import { defaultPreferences } from "../src/domain/model";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { StudyEvent } from "../src/domain/model";
@@ -42,6 +44,32 @@ const recurring = event({
     end_time: "10:30",
     timezone: "America/Vancouver",
   },
+});
+test("calendar indexes each visible day and excludes a midnight ending from the next day", () => {
+  const event = {
+    ...recurring,
+    kind: "quiz" as const,
+    custom_type: "Presentation",
+    recurrence: null,
+    starts_at: "2026-03-02T18:00:00Z",
+    ends_at: "2026-03-04T00:00:00Z",
+  };
+  const p = {
+    ...defaultPreferences("local"),
+    timezone: "UTC",
+    calendar_types: [],
+  };
+  assert.deepEqual(
+    [...calendarDays([event], "2026-03-01", 7, p).keys()],
+    ["2026-03-02", "2026-03-03"],
+  );
+  assert.equal(
+    calendarDays([event], "2026-03-01", 7, {
+      ...p,
+      custom_type_visibility: { "assessments:presentation": false },
+    }).size,
+    0,
+  );
 });
 test("weekly classes keep campus wall time across daylight saving", () => {
   assert.equal(

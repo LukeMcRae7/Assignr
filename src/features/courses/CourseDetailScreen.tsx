@@ -10,7 +10,6 @@ import {
 import { useWorkspace } from "../../providers/WorkspaceProvider";
 import {
   Button,
-  Chip,
   Confirm,
   EmptyState,
   Icon,
@@ -19,6 +18,7 @@ import {
   SectionTitle,
   Text,
 } from "../../ui/primitives";
+import { categoryForKind } from "../../domain/eventEditor";
 import { blend, useTheme } from "../../ui/theme";
 import { CourseEditor } from "./CourseEditor";
 import { AssignmentRow } from "../events/EventRows";
@@ -56,7 +56,9 @@ export function CourseDetailScreen({ id }: { id: string }) {
     ? exceptionsOutsideSemester(semester, [course], events)
     : [];
   const assignments = assignmentsByDueDate(courseEvents);
-  const classes = courseEvents.filter((e) => e.recurrence);
+  const classes = courseEvents.filter(
+    (e) => categoryForKind(e.kind) === "classes",
+  );
   const exams = courseEvents
     .filter((e) => e.kind === "exam" || e.kind === "quiz")
     .sort((a, b) =>
@@ -66,313 +68,308 @@ export function CourseDetailScreen({ id }: { id: string }) {
     );
   const create = (kind: string) =>
     router.push({ pathname: "/event/new", params: { courseId: id, kind } });
+  const banner = blend(course.color, "#111111", 0.9);
   return (
     <SafeAreaView
       edges={["top", "left", "right"]}
-      style={{ flex: 1, backgroundColor: t.background }}
+      style={{ flex: 1, backgroundColor: banner }}
     >
-      <ScrollView contentContainerStyle={{ paddingBottom: 80 }}>
+      <View style={{ flex: 1, backgroundColor: t.background }}>
         <View
+          pointerEvents="none"
           style={{
-            backgroundColor: blend(course.color, "#111111", 0.9),
-            paddingHorizontal: 20,
-            paddingVertical: 28,
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: "50%",
+            backgroundColor: banner,
           }}
-        >
+        />
+        <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
           <View
             style={{
-              width: "100%",
-              maxWidth: 1000,
-              alignSelf: "center",
-              flexDirection: "row",
-              gap: 18,
-              alignItems: "center",
+              backgroundColor: banner,
+              paddingHorizontal: 20,
+              paddingVertical: 28,
             }}
           >
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Back to courses"
-              onPress={() => router.back()}
-              style={{ padding: 8 }}
-            >
-              <Icon name="chevron-left" color="#FFF" size={30} />
-            </Pressable>
             <View
               style={{
-                backgroundColor: "#FFFFFF22",
-                width: 58,
-                height: 58,
-                borderRadius: 18,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Icon name={course.icon} color="#FFF" size={33} />
-            </View>
-            <View style={{ flex: 1, gap: 4 }}>
-              <Text
-                style={{
-                  fontSize: 26,
-                  lineHeight: 32,
-                  fontWeight: "700",
-                  color: "#FFF",
-                }}
-              >
-                {course.name}
-              </Text>
-              <Text style={{ color: "#FFFFFFCC" }}>{course.code}</Text>
-            </View>
-          </View>
-        </View>
-        <View
-          style={{
-            width: "100%",
-            maxWidth: 1000,
-            alignSelf: "center",
-            padding: 24,
-            gap: 24,
-          }}
-        >
-          {semester ? (
-            <Text muted style={{ fontSize: 13 }}>
-              {semester.name} · {format(parseISO(semester.start_date), "MMM d")}{" "}
-              – {format(parseISO(semester.end_date), "MMM d, yyyy")}
-            </Text>
-          ) : (
-            <Button variant="secondary" onPress={() => setEdit(true)}>
-              Assign semester
-            </Button>
-          )}
-          {outside.length ? (
-            <View style={{ gap: 8 }}>
-              <Text style={{ color: t.danger }}>
-                Review class changes outside teaching dates
-              </Text>
-              {outside.map((e) => (
-                <Button
-                  key={e.id}
-                  variant="ghost"
-                  onPress={() => router.push(`/event/${e.id}`)}
-                >
-                  {e.title} · {e.occurrence_date}
-                </Button>
-              ))}
-            </View>
-          ) : null}
-          {course.professor ? (
-            <View
-              style={{ flexDirection: "row", gap: 14, alignItems: "center" }}
-            >
-              <Icon name="account" />
-              <Text>{course.professor}</Text>
-            </View>
-          ) : null}
-          <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
-            <Icon name="calendar-clock-outline" />
-            <View
-              style={{
-                flex: 1,
+                width: "100%",
+                maxWidth: 1000,
+                alignSelf: "center",
                 flexDirection: "row",
-                flexWrap: "wrap",
-                gap: 8,
+                gap: 18,
+                alignItems: "center",
               }}
             >
-              {classes.length ? (
-                classes.map((e) => (
-                  <Chip
-                    key={e.id}
-                    onPress={() => router.push(`/event/${e.id}`)}
-                  >
-                    {weeklyScheduleLabel(e, p.timezone, p.hour24)}
-                  </Chip>
-                ))
-              ) : (
-                <Text muted style={{ fontSize: 14 }}>
-                  No weekly classes yet
-                </Text>
-              )}
-            </View>
-          </View>
-          {course.website ? (
-            <Pressable
-              accessibilityRole="link"
-              onPress={() => {
-                void perform(() => Linking.openURL(course.website));
-              }}
-              style={{ flexDirection: "row", gap: 14, alignItems: "center" }}
-            >
-              <Icon name="earth" />
-              <Text
-                numberOfLines={1}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Back to courses"
+                onPress={() => router.back()}
+                style={{ padding: 8 }}
+              >
+                <Icon name="chevron-left" color="#FFF" size={30} />
+              </Pressable>
+              <View
                 style={{
-                  flex: 1,
-                  color: t.accent,
-                  fontSize: 14,
-                  textDecorationLine: "underline",
+                  backgroundColor: "#FFFFFF22",
+                  width: 58,
+                  height: 58,
+                  borderRadius: 18,
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
-                {course.website}
-              </Text>
-            </Pressable>
-          ) : null}
-          <View style={{ flexDirection: "row", gap: 10 }}>
-            {[
-              { kind: "assignment", label: "Add assignment", icon: "plus" },
-              {
-                kind: "exam",
-                label: "Add exam",
-                icon: "file-document-outline",
-              },
-              {
-                kind: "lecture",
-                label: "Manage classes",
-                icon: "school-outline",
-              },
-            ].map((action) => (
-              <Pressable
-                key={action.kind}
-                accessibilityRole="button"
-                accessibilityLabel={action.label}
-                onPress={() => create(action.kind)}
-                style={({ pressed }) => ({
-                  flex: 1,
-                  backgroundColor: pressed ? t.elevated : t.surface,
-                  borderRadius: 15,
-                  paddingVertical: 23,
-                  paddingHorizontal: 8,
-                  alignItems: "center",
-                  gap: 10,
-                })}
-              >
-                <Icon name={action.icon} color={t.accent} size={27} />
+                <Icon name={course.icon} color="#FFF" size={33} />
+              </View>
+              <View style={{ flex: 1, gap: 4 }}>
                 <Text
                   style={{
-                    fontSize: 13,
-                    textAlign: "center",
-                    fontWeight: "500",
+                    fontSize: 26,
+                    lineHeight: 32,
+                    fontWeight: "700",
+                    color: "#FFF",
                   }}
                 >
-                  {action.label}
+                  {course.name}
                 </Text>
-              </Pressable>
-            ))}
+                <Text style={{ color: "#FFFFFFCC" }}>{course.code}</Text>
+              </View>
+            </View>
           </View>
-          <Panel>
-            <SectionTitle>Assignments</SectionTitle>
-            {assignments.length ? (
-              assignments.map((e) => <AssignmentRow key={e.id} event={e} />)
-            ) : (
-              <Text
-                muted
-                style={{
-                  textAlign: "center",
-                  paddingVertical: 22,
-                  fontStyle: "italic",
-                }}
-              >
-                No assignments. A fresh start.
-              </Text>
-            )}
-          </Panel>
-          <Panel>
-            <SectionTitle>Exams & quizzes</SectionTitle>
-            {exams.length ? (
-              exams.map((e) => (
-                <Pressable
-                  key={e.id}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Open ${e.title}`}
-                  onPress={() => router.push(`/event/${e.id}`)}
+          <View style={{ backgroundColor: t.background, flexGrow: 1 }}>
+            <View
+              style={{
+                width: "100%",
+                maxWidth: 1000,
+                alignSelf: "center",
+                padding: 24,
+                gap: 24,
+              }}
+            >
+              {semester ? (
+                <Text muted style={{ fontSize: 13 }}>
+                  {semester.name} ·{" "}
+                  {format(parseISO(semester.start_date), "MMM d")} –{" "}
+                  {format(parseISO(semester.end_date), "MMM d, yyyy")}
+                </Text>
+              ) : (
+                <Button variant="secondary" onPress={() => setEdit(true)}>
+                  Assign semester
+                </Button>
+              )}
+              {outside.length ? (
+                <View style={{ gap: 8 }}>
+                  <Text style={{ color: t.danger }}>
+                    Review class changes outside teaching dates
+                  </Text>
+                  {outside.map((e) => (
+                    <Button
+                      key={e.id}
+                      variant="ghost"
+                      onPress={() => router.push(`/event/${e.id}`)}
+                    >
+                      {e.title} · {e.occurrence_date}
+                    </Button>
+                  ))}
+                </View>
+              ) : null}
+              {course.professor ? (
+                <View
                   style={{
-                    borderWidth: 1,
-                    borderColor: t.border,
-                    borderRadius: 12,
-                    padding: 16,
                     flexDirection: "row",
-                    gap: 12,
+                    gap: 14,
                     alignItems: "center",
                   }}
                 >
-                  <Icon
-                    name={
-                      e.kind === "exam"
-                        ? "file-document-outline"
-                        : "clipboard-check-outline"
-                    }
-                    color={t.danger}
-                  />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontWeight: "600" }}>{e.title}</Text>
-                    <Text muted style={{ fontSize: 13 }}>
-                      {e.starts_at || e.due_at
-                        ? displayDate(
-                            (e.starts_at || e.due_at)!,
-                            p.timezone,
-                            p.hour24
-                              ? "MMM d, yyyy · HH:mm"
-                              : "MMM d, yyyy · h:mm a",
-                          )
-                        : ""}
-                      {e.location ? ` · ${e.location}` : ""}
-                    </Text>
-                  </View>
-                  <Icon name="chevron-right" size={20} />
-                </Pressable>
-              ))
-            ) : (
-              <Text
-                muted
-                style={{
-                  textAlign: "center",
-                  paddingVertical: 22,
-                  fontStyle: "italic",
-                }}
-              >
-                No exams or quizzes scheduled
-              </Text>
-            )}
-          </Panel>
-          {classes.length ? (
-            <Panel>
-              <SectionTitle
-                right={
-                  <IconButton
-                    icon="plus"
-                    label="Add weekly class"
-                    onPress={() => create("lecture")}
-                  />
-                }
-              >
-                Weekly classes
-              </SectionTitle>
-              {classes.map((e) => (
+                  <Icon name="account" />
+                  <Text>{course.professor}</Text>
+                </View>
+              ) : null}
+              {course.website ? (
                 <Pressable
-                  key={e.id}
-                  accessibilityRole="button"
-                  onPress={() => router.push(`/event/${e.id}`)}
-                  style={{ gap: 5 }}
+                  accessibilityRole="link"
+                  onPress={() => {
+                    void perform(() => Linking.openURL(course.website));
+                  }}
+                  style={{
+                    flexDirection: "row",
+                    gap: 14,
+                    alignItems: "center",
+                  }}
                 >
-                  <Text style={{ fontWeight: "500" }}>{e.title}</Text>
-                  <Text muted style={{ fontSize: 13 }}>
-                    {weeklyScheduleLabel(e, p.timezone, p.hour24)}
-                    {e.location ? ` · ${e.location}` : ""}
+                  <Icon name="earth" />
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      flex: 1,
+                      color: t.accent,
+                      fontSize: 14,
+                      textDecorationLine: "underline",
+                    }}
+                  >
+                    {course.website}
                   </Text>
                 </Pressable>
-              ))}
-            </Panel>
-          ) : null}
-          <Button
-            variant="secondary"
-            icon="pencil-outline"
-            onPress={() => setEdit(true)}
-          >
-            Edit course
-          </Button>
-          <Button variant="danger" onPress={() => setConfirm(true)}>
-            Delete course
-          </Button>
-        </View>
-      </ScrollView>
+              ) : null}
+              <Panel>
+                <SectionTitle
+                  right={
+                    <IconButton
+                      icon="plus"
+                      label="Add assignment"
+                      onPress={() => create("assignment")}
+                    />
+                  }
+                >
+                  Assignments
+                </SectionTitle>
+                {assignments.length ? (
+                  assignments.map((e) => <AssignmentRow key={e.id} event={e} />)
+                ) : (
+                  <Text
+                    muted
+                    style={{
+                      textAlign: "center",
+                      paddingVertical: 3,
+                    }}
+                  >
+                    No assignments
+                  </Text>
+                )}
+              </Panel>
+              <Panel>
+                <SectionTitle
+                  right={
+                    <IconButton
+                      icon="plus"
+                      label="Add assessment"
+                      onPress={() => create("exam")}
+                    />
+                  }
+                >
+                  Assessments
+                </SectionTitle>
+                {exams.length ? (
+                  exams.map((e) => (
+                    <Pressable
+                      key={e.id}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Open ${e.title}`}
+                      onPress={() => router.push(`/event/${e.id}`)}
+                      style={{
+                        borderWidth: 1,
+                        borderColor: t.border,
+                        borderRadius: 12,
+                        padding: 16,
+                        flexDirection: "row",
+                        gap: 12,
+                        alignItems: "center",
+                      }}
+                    >
+                      <Icon
+                        name={
+                          e.kind === "exam"
+                            ? "file-document-outline"
+                            : "clipboard-check-outline"
+                        }
+                        color={
+                          e.kind === "exam" && p.highlight_exams
+                            ? t.danger
+                            : course.color
+                        }
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontWeight: "600" }}>{e.title}</Text>
+                        <Text muted style={{ fontSize: 13 }}>
+                          {e.starts_at || e.due_at
+                            ? displayDate(
+                                (e.starts_at || e.due_at)!,
+                                p.timezone,
+                                p.hour24
+                                  ? "MMM d, yyyy · HH:mm"
+                                  : "MMM d, yyyy · h:mm a",
+                              )
+                            : ""}
+                          {e.location ? ` · ${e.location}` : ""}
+                        </Text>
+                      </View>
+                      <Icon name="chevron-right" size={20} />
+                    </Pressable>
+                  ))
+                ) : (
+                  <Text
+                    muted
+                    style={{
+                      textAlign: "center",
+                      paddingVertical: 3,
+                    }}
+                  >
+                    No assessments
+                  </Text>
+                )}
+              </Panel>
+              <Panel>
+                <SectionTitle
+                  right={
+                    <IconButton
+                      icon="plus"
+                      label="Add weekly class"
+                      onPress={() => create("lecture")}
+                    />
+                  }
+                >
+                  Class schedule
+                </SectionTitle>
+                {!classes.length ? (
+                  <Text muted style={{ fontSize: 14 }}>
+                    No classes scheduled
+                  </Text>
+                ) : null}
+                {classes.map((e) => (
+                  <Pressable
+                    key={e.id}
+                    accessibilityRole="button"
+                    onPress={() => router.push(`/event/${e.id}`)}
+                    style={{ gap: 5 }}
+                  >
+                    <Text style={{ fontWeight: "500" }}>{e.title}</Text>
+                    <Text muted style={{ fontSize: 13 }}>
+                      {e.recurrence
+                        ? weeklyScheduleLabel(e, p.timezone, p.hour24)
+                        : displayDate(
+                            (e.starts_at || e.due_at)!,
+                            p.timezone,
+                            p.hour24 ? "MMM d · HH:mm" : "MMM d · h:mm a",
+                          )}
+                      {e.location ? ` · ${e.location}` : ""}
+                    </Text>
+                  </Pressable>
+                ))}
+              </Panel>
+              <View style={{ flexDirection: "row", gap: 8 }}>
+                <Button
+                  compact
+                  variant="secondary"
+                  icon="pencil-outline"
+                  onPress={() => setEdit(true)}
+                >
+                  Edit course
+                </Button>
+                <Button
+                  compact
+                  variant="ghost"
+                  onPress={() => setConfirm(true)}
+                >
+                  Delete course
+                </Button>
+              </View>
+            </View>
+          </View>
+        </ScrollView>
+      </View>
       {edit ? (
         <CourseEditor course={course} onClose={() => setEdit(false)} />
       ) : null}

@@ -22,7 +22,7 @@ export function DateTimeField({
 }: DateTimeFieldProps) {
   const t = useTheme();
   const { preferences } = useWorkspace();
-  const [open, setOpen] = useState(false);
+  const [pickerDate, setPickerDate] = useState<Date | null>(null);
   const parsed =
     mode === "date"
       ? new Date(`${value}T12:00:00`)
@@ -38,9 +38,11 @@ export function DateTimeField({
         value: selected,
         mode,
         is24Hour: preferences.hour24,
+        neutralButton: value && onClear ? { label: "Clear date" } : undefined,
+        onNeutralButtonPress: onClear,
         onValueChange: (_event, date) => change(date),
       });
-    else setOpen(!open);
+    else setPickerDate(selected);
   }
   return (
     <View testID="form-field" style={{ flexShrink: 0, minWidth: 0, gap: 6 }}>
@@ -67,7 +69,11 @@ export function DateTimeField({
         }}
       >
         {!compact || value ? (
-          <Text style={{ fontSize: compact ? 12 : 15 }}>
+          <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            style={{ flexShrink: 1, fontSize: compact ? 12 : 15 }}
+          >
             {mode === "date"
               ? format(selected, compact ? "MMM d" : "MMM d, yyyy")
               : displayWallTime(value, preferences.hour24)}
@@ -83,12 +89,12 @@ export function DateTimeField({
           {hint}
         </Text>
       ) : null}
-      {open ? (
+      {pickerDate ? (
         <Modal
           transparent
           visible
           animationType="fade"
-          onRequestClose={() => setOpen(false)}
+          onRequestClose={() => setPickerDate(null)}
         >
           <View
             style={{
@@ -99,7 +105,7 @@ export function DateTimeField({
           >
             <Pressable
               accessibilityLabel="Dismiss picker"
-              onPress={() => setOpen(false)}
+              onPress={() => setPickerDate(null)}
               style={{
                 position: "absolute",
                 top: 0,
@@ -120,7 +126,7 @@ export function DateTimeField({
             >
               <Text style={{ fontWeight: "600" }}>{label}</Text>
               <DateTimePicker
-                value={selected}
+                value={pickerDate}
                 mode={mode}
                 display="spinner"
                 themeVariant={t.dark ? "dark" : "light"}
@@ -132,9 +138,16 @@ export function DateTimeField({
                     : undefined
                 }
                 style={{ width: "100%", height: 216 }}
-                onValueChange={(_event, date) => change(date)}
+                onValueChange={(_event, date) => setPickerDate(date)}
               />
-              <Button variant="ghost" onPress={() => setOpen(false)}>
+              <Button
+                compact
+                variant="ghost"
+                onPress={() => {
+                  change(pickerDate);
+                  setPickerDate(null);
+                }}
+              >
                 Done
               </Button>
               {value && onClear ? (
@@ -143,7 +156,7 @@ export function DateTimeField({
                   variant="ghost"
                   onPress={() => {
                     onClear();
-                    setOpen(false);
+                    setPickerDate(null);
                   }}
                 >
                   Clear date

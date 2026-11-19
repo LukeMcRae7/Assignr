@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { displayDate, displayTime, dayKey } from "../../domain/dates";
 import { Occurrence, StudyEvent } from "../../domain/model";
+import { typeLabel } from "../../domain/eventEditor";
 import { subtaskProgress } from "../../domain/schedule";
 import { useWorkspace } from "../../providers/WorkspaceProvider";
 import { Icon, Text } from "../../ui/primitives";
@@ -24,7 +26,14 @@ export function AssignmentRow({
   event: StudyEvent;
   showCourse?: boolean;
 }) {
-  const { courses, preferences: p, toggleAssignment, perform } = useWorkspace();
+  const [expanded, setExpanded] = useState(false);
+  const {
+    courses,
+    preferences: p,
+    toggleAssignment,
+    toggleSubtask,
+    perform,
+  } = useWorkspace();
   const t = useTheme();
   const course = courses.find((c) => c.id === event.course_id);
   const progress = subtaskProgress(event);
@@ -37,127 +46,188 @@ export function AssignmentRow({
     dayKey(new Date(event.due_at), p.timezone) ===
       dayKey(new Date(), p.timezone);
   return (
-    <View
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 12,
-        paddingVertical: 15,
-      }}
-    >
-      <Pressable
-        accessibilityRole="checkbox"
-        accessibilityLabel={`Complete ${event.title}`}
-        accessibilityState={{ checked: event.completed }}
-        aria-checked={event.completed}
-        onPress={() => {
-          void perform(() => toggleAssignment(event.id));
-        }}
+    <View>
+      <View
         style={{
-          width: 44,
-          minHeight: 44,
-          justifyContent: "center",
+          flexDirection: "row",
           alignItems: "center",
+          gap: 12,
+          paddingVertical: 5,
         }}
       >
-        <View
+        <Pressable
+          accessibilityRole="checkbox"
+          accessibilityLabel={`Complete ${event.title}`}
+          accessibilityState={{ checked: event.completed }}
+          aria-checked={event.completed}
+          onPress={() => {
+            void perform(() => toggleAssignment(event.id));
+          }}
           style={{
-            width: 23,
-            height: 23,
-            borderWidth: 2,
-            borderColor: event.completed ? t.accent : t.muted,
-            borderRadius: 5,
-            backgroundColor: event.completed ? t.accent : "transparent",
-            alignItems: "center",
+            width: 44,
+            minHeight: 44,
             justifyContent: "center",
+            alignItems: "center",
           }}
         >
-          {event.completed ? (
-            <Icon name="check" size={17} color="#FFF" />
-          ) : null}
-        </View>
-      </Pressable>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Open ${event.title}`}
-        onPress={() => router.push(`/event/${event.id}`)}
-        style={{ flex: 1, gap: 5, paddingVertical: 3 }}
-      >
-        <Text
-          style={{
-            fontWeight: "500",
-            textDecorationLine: event.completed ? "line-through" : "none",
-            color: event.completed ? t.muted : t.text,
-          }}
-        >
-          {event.title}
-        </Text>
-        {showCourse ? (
-          <Text muted style={{ fontSize: 12, lineHeight: 18 }}>
-            {course?.name || "Personal"}
-          </Text>
-        ) : null}
-        {event.subtasks.length ? (
           <View
             style={{
-              flexDirection: "row",
+              width: 23,
+              height: 23,
+              borderWidth: 2,
+              borderColor: event.completed ? t.accent : t.muted,
+              borderRadius: 5,
+              backgroundColor: event.completed ? t.accent : "transparent",
               alignItems: "center",
-              gap: 10,
-              marginTop: 3,
+              justifyContent: "center",
             }}
           >
+            {event.completed ? (
+              <Icon name="check" size={17} color="#FFF" />
+            ) : null}
+          </View>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Open ${event.title}`}
+          onPress={() => router.push(`/event/${event.id}`)}
+          style={{ flex: 1, gap: 5, paddingVertical: 3 }}
+        >
+          <Text
+            style={{
+              fontWeight: "500",
+              textDecorationLine: event.completed ? "line-through" : "none",
+              color: event.completed ? t.muted : t.text,
+            }}
+          >
+            {event.title}
+          </Text>
+          {showCourse ? (
+            <Text muted style={{ fontSize: 12, lineHeight: 18 }}>
+              {course?.name || "Personal"}
+            </Text>
+          ) : null}
+          {event.subtasks.length ? (
             <View
               style={{
-                height: 4,
-                backgroundColor: t.elevated,
-                flex: 1,
-                maxWidth: 140,
-                borderRadius: 3,
-                overflow: "hidden",
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 10,
+                marginTop: 3,
               }}
             >
               <View
                 style={{
-                  height: "100%",
-                  width: `${progress * 100}%`,
-                  backgroundColor: course?.color || t.accent,
+                  height: 4,
+                  backgroundColor: t.elevated,
+                  flex: 1,
+                  maxWidth: 140,
+                  borderRadius: 3,
+                  overflow: "hidden",
                 }}
-              />
+              >
+                <View
+                  style={{
+                    height: "100%",
+                    width: `${progress * 100}%`,
+                    backgroundColor: course?.color || t.accent,
+                  }}
+                />
+              </View>
+              <Text muted style={{ fontSize: 11, lineHeight: 16 }}>
+                {event.subtasks.filter((s) => s.completed).length}/
+                {event.subtasks.length}
+              </Text>
             </View>
-            <Text muted style={{ fontSize: 11, lineHeight: 16 }}>
-              {event.subtasks.filter((s) => s.completed).length}/
-              {event.subtasks.length}
-            </Text>
-          </View>
+          ) : null}
+        </Pressable>
+        {event.subtasks.length ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={"Subtasks for " + event.title}
+            aria-expanded={expanded}
+            onPress={() => setExpanded(!expanded)}
+            style={{
+              minWidth: 36,
+              minHeight: 44,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Icon size={18} name={expanded ? "chevron-up" : "chevron-down"} />
+          </Pressable>
         ) : null}
-      </Pressable>
-      <View style={{ alignItems: "flex-end", gap: 3 }}>
-        {event.priority ? (
-          <Icon
-            name="flag-variant-outline"
-            size={14}
-            color={
-              event.priority === "high"
-                ? t.danger
-                : event.priority === "medium"
-                  ? "#C99639"
-                  : t.muted
-            }
-          />
-        ) : null}
-        <Text style={{ fontSize: 13, color: overdue ? t.danger : t.muted }}>
-          {event.due_at
-            ? dueToday
-              ? "Today"
-              : displayDate(event.due_at, p.timezone)
-            : ""}
-        </Text>
-        {dueToday && event.due_at ? (
-          <Text muted style={{ fontSize: 11, lineHeight: 16 }}>
-            {displayTime(event.due_at, p.timezone, p.hour24)}
+        <View style={{ alignItems: "flex-end", gap: 3 }}>
+          {event.priority ? (
+            <Icon
+              name="flag-variant-outline"
+              size={14}
+              color={
+                event.priority === "high"
+                  ? t.danger
+                  : event.priority === "medium"
+                    ? "#C99639"
+                    : t.muted
+              }
+            />
+          ) : null}
+          <Text style={{ fontSize: 13, color: overdue ? t.danger : t.muted }}>
+            {event.due_at
+              ? dueToday
+                ? "Today"
+                : displayDate(event.due_at, p.timezone)
+              : ""}
           </Text>
-        ) : null}
+          {dueToday && event.due_at ? (
+            <Text muted style={{ fontSize: 11, lineHeight: 16 }}>
+              {displayTime(event.due_at, p.timezone, p.hour24)}
+            </Text>
+          ) : null}
+        </View>
       </View>
+      {expanded && event.subtasks.length ? (
+        <View
+          style={{
+            marginLeft: 24,
+            paddingLeft: 12,
+            borderLeftWidth: 2,
+            borderLeftColor: course?.color || t.accent,
+          }}
+        >
+          {event.subtasks.map((s) => (
+            <Pressable
+              key={s.id}
+              accessibilityRole="checkbox"
+              aria-checked={s.completed}
+              accessibilityState={{ checked: s.completed }}
+              accessibilityLabel={s.title}
+              onPress={() => void perform(() => toggleSubtask(event.id, s.id))}
+              style={{
+                minHeight: 44,
+                flexDirection: "row",
+                gap: 8,
+                alignItems: "center",
+              }}
+            >
+              <Icon
+                name={
+                  s.completed ? "checkbox-marked" : "checkbox-blank-outline"
+                }
+                size={18}
+              />
+              <Text
+                style={{
+                  fontSize: 14,
+                  flex: 1,
+                  textDecorationLine: s.completed ? "line-through" : "none",
+                }}
+              >
+                {s.title}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -258,7 +328,7 @@ export function EventRow({
               letterSpacing: 0.8,
             }}
           >
-            {event.kind}
+            {typeLabel(event)}
             {event.parent_event_id ? " · In class" : ""}
           </Text>
         ) : null}

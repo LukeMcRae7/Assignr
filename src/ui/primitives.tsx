@@ -177,12 +177,14 @@ export function Field({
   style,
   hideLabel = false,
   prominent = false,
+  outlined = false,
   ...props
 }: TextInputProps & {
   label: string;
   hint?: string;
   hideLabel?: boolean;
   prominent?: boolean;
+  outlined?: boolean;
 }) {
   const t = useTheme();
   const [focused, setFocused] = useState(false);
@@ -214,7 +216,9 @@ export function Field({
               ? "transparent"
               : focused
                 ? t.accent
-                : "transparent",
+                : outlined
+                  ? t.border
+                  : "transparent",
             borderRadius: controls.radius,
             color: t.text,
             backgroundColor: prominent ? "transparent" : t.surface,
@@ -256,7 +260,14 @@ export function Chip({
       accessibilityLabel={label}
       accessibilityState={{ selected }}
       aria-pressed={selected}
-      onPress={onPress}
+      onPress={
+        onPress
+          ? () => {
+              Keyboard.dismiss();
+              onPress();
+            }
+          : undefined
+      }
       style={{
         borderWidth: 1,
         borderColor: selected ? color || t.accent : "transparent",
@@ -332,6 +343,7 @@ export function Screen({
   floating,
   refresh,
   aside,
+  fluid = false,
 }: PropsWithChildren<{
   title: string;
   subtitle?: string;
@@ -339,6 +351,7 @@ export function Screen({
   floating?: ReactNode;
   refresh?: ReactNode;
   aside?: ReactNode;
+  fluid?: boolean;
 }>) {
   const t = useTheme();
   const { width } = useWindowDimensions();
@@ -348,82 +361,85 @@ export function Screen({
       edges={["top", "left", "right"]}
       style={{ flex: 1, backgroundColor: t.background }}
     >
-      <View
-        testID="screen-header"
-        style={{
-          width: "100%",
-          maxWidth: split ? undefined : 1114,
-          alignSelf: "center",
-          paddingHorizontal: width >= 900 ? 32 : 20,
-          paddingTop: 16,
-          paddingBottom: 20,
-          flexDirection: "row",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 8,
-          flexShrink: 0,
-        }}
-      >
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text
-            accessibilityRole="header"
-            numberOfLines={1}
-            style={{
-              fontSize: width >= 900 ? 34 : width < 360 ? 28 : 32,
-              lineHeight: 44,
-              fontWeight: "700",
-              letterSpacing: -0.8,
-            }}
-          >
-            {title}
-          </Text>
-          {subtitle ? (
-            <Text muted style={{ fontSize: 13 }}>
-              {subtitle}
-            </Text>
-          ) : null}
-        </View>
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 3,
-            flexShrink: 0,
-          }}
-        >
-          {actions}
-        </View>
-      </View>
       <View style={{ flex: 1, flexDirection: "row", minHeight: 0 }}>
-        <ScrollView
-          style={{ flex: 1, minWidth: 0 }}
-          keyboardShouldPersistTaps="handled"
-          keyboardDismissMode="on-drag"
-          contentContainerStyle={{
-            paddingHorizontal: width >= 900 ? 32 : 20,
-            paddingBottom: 100,
-            flexGrow: 1,
-          }}
-        >
+        <View style={{ flex: 1, minWidth: 0 }}>
           <View
+            testID="screen-header"
             style={{
               width: "100%",
-              maxWidth: 1050,
+              maxWidth: split || fluid ? undefined : 1114,
               alignSelf: "center",
-              gap: 24,
+              paddingHorizontal: width >= 900 ? 32 : 20,
+              paddingTop: 16,
+              paddingBottom: 20,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+              flexShrink: 0,
             }}
           >
-            {refresh}
-            {children}
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text
+                accessibilityRole="header"
+                numberOfLines={1}
+                style={{
+                  fontSize: width >= 900 ? 34 : width < 360 ? 28 : 32,
+                  lineHeight: 44,
+                  fontWeight: "700",
+                  letterSpacing: -0.8,
+                }}
+              >
+                {title}
+              </Text>
+              {subtitle ? (
+                <Text muted style={{ fontSize: 13 }}>
+                  {subtitle}
+                </Text>
+              ) : null}
+            </View>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 3,
+                flexShrink: 0,
+              }}
+            >
+              {actions}
+            </View>
           </View>
-        </ScrollView>
+          <ScrollView
+            style={{ flex: 1, minWidth: 0 }}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            contentContainerStyle={{
+              paddingHorizontal: width >= 900 ? 32 : 20,
+              paddingBottom: 100,
+              flexGrow: 1,
+            }}
+          >
+            <View
+              style={{
+                width: "100%",
+                maxWidth: fluid ? undefined : 1050,
+                alignSelf: "center",
+                gap: 24,
+              }}
+            >
+              {refresh}
+              {children}
+            </View>
+          </ScrollView>
+        </View>
         {aside ? (
           <View
             testID="screen-aside"
             style={
               split
                 ? {
-                    width: 400,
+                    width: Math.min(460, width * 0.3),
+                    paddingTop: 16,
                     minHeight: 0,
                     marginRight: 24,
                     marginLeft: 8,
@@ -480,7 +496,7 @@ export function EmptyState({
 }: {
   icon?: string;
   title: string;
-  description: string;
+  description?: string;
   action?: ReactNode;
 }) {
   const t = useTheme();
@@ -516,12 +532,14 @@ export function EmptyState({
       >
         {title}
       </Text>
-      <Text
-        muted
-        style={{ maxWidth: 320, textAlign: "center", marginBottom: 8 }}
-      >
-        {description}
-      </Text>
+      {description ? (
+        <Text
+          muted
+          style={{ maxWidth: 320, textAlign: "center", marginBottom: 8 }}
+        >
+          {description}
+        </Text>
+      ) : null}
       {action}
     </View>
   );
@@ -625,10 +643,7 @@ export function Sheet({
         width: "100%",
         maxWidth: inline || side ? undefined : large ? 640 : 540,
         maxHeight: height - (mobile ? 44 : 64),
-        height:
-          (large && mobile) || inline || side
-            ? height - (inline ? 156 : mobile ? 44 : 64)
-            : undefined,
+        height: inline || side ? height - 64 : undefined,
         borderRadius: inline ? 14 : side ? 0 : 18,
         overflow: "hidden",
         borderWidth: mobile ? 0 : 1,
@@ -681,7 +696,7 @@ export function Sheet({
         testID="form-body"
         style={{
           flexShrink: 1,
-          flexGrow: (large && mobile) || inline || side ? 1 : 0,
+          flexGrow: inline || side ? 1 : 0,
           minHeight: 0,
         }}
         keyboardShouldPersistTaps="handled"
@@ -718,7 +733,12 @@ export function Sheet({
   );
   if (inline) return content;
   return (
-    <Modal visible transparent animationType="none" onRequestClose={onClose}>
+    <Modal
+      visible
+      transparent
+      animationType={t.reduceMotion ? "none" : "fade"}
+      onRequestClose={onClose}
+    >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={{

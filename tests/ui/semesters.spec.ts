@@ -19,7 +19,7 @@ test("semester setup, switching, date edits, and history keep standalone plans v
     .getByRole("button", { name: "Create course", exact: true })
     .click();
   await page
-    .getByRole("button", { name: "Manage classes", exact: true })
+    .getByRole("button", { name: "Add weekly class", exact: true })
     .click();
   await expect(page.getByLabel("Class timezone", { exact: true })).toHaveCount(
     0,
@@ -60,7 +60,7 @@ test("semester setup, switching, date edits, and history keep standalone plans v
     .click();
   await page.getByRole("link", { name: "ToDo", exact: true }).click();
   await expect(
-    page.getByText("Unfinished from past semesters", { exact: true }),
+    page.getByRole("heading", { name: "Fall 2026", exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Open Past semester work", exact: true }),

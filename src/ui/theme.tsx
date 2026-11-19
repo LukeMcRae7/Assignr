@@ -1,5 +1,11 @@
-import { createContext, PropsWithChildren, useContext } from "react";
-import { useColorScheme } from "react-native";
+import {
+  createContext,
+  PropsWithChildren,
+  useContext,
+  useEffect,
+  useState,
+} from "react";
+import { AccessibilityInfo, useColorScheme } from "react-native";
 import { useWorkspace } from "../providers/WorkspaceProvider";
 
 export const palette = {
@@ -29,11 +35,27 @@ export const palette = {
 const ThemeContext = createContext({
   ...palette.light,
   dark: false,
+  reduceMotion: true,
   accent: "#2798EE",
 });
 export function ThemeProvider({ children }: PropsWithChildren) {
   const { preferences } = useWorkspace();
   const system = useColorScheme();
+  const [reduceMotion, setReduceMotion] = useState(true);
+  useEffect(() => {
+    let active = true;
+    const subscription = AccessibilityInfo.addEventListener(
+      "reduceMotionChanged",
+      setReduceMotion,
+    );
+    void AccessibilityInfo.isReduceMotionEnabled().then((value) => {
+      if (active) setReduceMotion(value);
+    });
+    return () => {
+      active = false;
+      subscription?.remove();
+    };
+  }, []);
   const dark =
     preferences.theme === "dark" ||
     (preferences.theme === "system" && system === "dark");
@@ -42,6 +64,7 @@ export function ThemeProvider({ children }: PropsWithChildren) {
       value={{
         ...(dark ? palette.dark : palette.light),
         dark,
+        reduceMotion,
         accent: preferences.accent,
       }}
     >

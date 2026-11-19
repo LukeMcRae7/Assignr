@@ -65,6 +65,7 @@ export interface StudyEvent extends BaseRecord {
   course_id: string | null;
   title: string;
   kind: EventKind;
+  custom_type?: string | null;
   starts_at: string | null;
   ends_at: string | null;
   due_at: string | null;
@@ -83,6 +84,7 @@ export interface Preferences extends BaseRecord {
   theme: ThemeMode;
   accent: string;
   calendar_types: EventKind[];
+  custom_type_visibility?: Record<string, boolean>;
   highlight_exams: boolean;
   hour24: boolean;
   default_due_time: string;

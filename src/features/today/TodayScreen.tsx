@@ -57,8 +57,7 @@ export function TodayScreen() {
         {!timeline.length ? (
           <EmptyState
             icon="weather-partly-cloudy"
-            title="The day is yours"
-            description="No classes or timed plans today. Take a moment for yourself, or plan something new."
+            title="No classes or plans today"
           />
         ) : (
           <View style={{ gap: 8 }}>

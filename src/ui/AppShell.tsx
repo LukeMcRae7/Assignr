@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -11,8 +12,15 @@ import {
 } from "react-native-safe-area-context";
 import { useWorkspace } from "../providers/WorkspaceProvider";
 import { useAuth } from "../providers/AuthProvider";
-import { Button, EmptyState, Icon, Sheet, Text } from "./primitives";
-import { useTheme } from "./theme";
+import {
+  Button,
+  EmptyState,
+  Icon,
+  IconButton,
+  Sheet,
+  Text,
+} from "./primitives";
+import { blend, useTheme } from "./theme";
 
 const items = [
   { href: "/", name: "ToDo", icon: "clipboard-list-outline" },
@@ -26,6 +34,8 @@ export function AppShell() {
   const pathname = usePathname();
   const { width } = useWindowDimensions();
   const wide = width >= 900;
+  const [collapsed, setCollapsed] = useState(false);
+  const rail = wide && collapsed;
   const insets = useSafeAreaInsets();
   const w = useWorkspace();
   const { session } = useAuth();
@@ -44,43 +54,52 @@ export function AppShell() {
       <SafeAreaView
         edges={wide ? ["top", "left", "bottom"] : ["left", "right"]}
         style={{
-          width: wide ? 224 : "100%",
-          backgroundColor: wide ? t.subtle : t.background,
+          width: rail ? 72 : wide ? 204 : "100%",
+          backgroundColor: t.subtle,
           borderRightWidth: wide ? 1 : 0,
           borderTopWidth: wide ? 0 : 1,
           borderColor: t.border,
-          paddingHorizontal: wide ? 16 : 5,
-          paddingTop: wide ? 32 : 8,
-          paddingBottom: wide ? 22 : Math.max(insets.bottom, 10),
+          paddingHorizontal: rail ? 8 : wide ? 14 : 7,
+          paddingTop: wide ? 18 : 5,
+          paddingBottom: wide ? 22 : Math.max(insets.bottom, 6),
           gap: wide ? 32 : 0,
         }}
       >
         {wide ? (
           <View
             style={{
-              paddingLeft: 12,
+              paddingLeft: rail ? 3 : 0,
               flexDirection: "row",
               alignItems: "center",
               gap: 11,
             }}
           >
-            <View
-              style={{
-                width: 31,
-                height: 33,
-                borderRadius: 9,
-                backgroundColor: t.accent,
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Icon name="check" color="#FFF" size={23} />
-            </View>
-            <Text
-              style={{ fontWeight: "700", fontSize: 24, letterSpacing: -0.7 }}
-            >
-              Assignr
-            </Text>
+            <IconButton
+              icon={rail ? "menu" : "menu-open"}
+              label={rail ? "Expand sidebar" : "Collapse sidebar"}
+              onPress={() => setCollapsed(!collapsed)}
+            />
+            {!rail ? (
+              <View
+                style={{
+                  width: 31,
+                  height: 33,
+                  borderRadius: 9,
+                  backgroundColor: t.accent,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Icon name="check" color="#FFF" size={23} />
+              </View>
+            ) : null}
+            {!rail ? (
+              <Text
+                style={{ fontWeight: "700", fontSize: 20, letterSpacing: -0.7 }}
+              >
+                Assignr
+              </Text>
+            ) : null}
           </View>
         ) : null}
         <View
@@ -103,36 +122,52 @@ export function AppShell() {
                     flex: wide ? undefined : 1,
                     flexDirection: wide ? "row" : "column",
                     alignItems: "center",
-                    justifyContent: wide ? "flex-start" : "center",
+                    justifyContent: wide && !rail ? "flex-start" : "center",
                     gap: wide ? 13 : 3,
-                    minHeight: wide ? 48 : 49,
-                    paddingHorizontal: wide ? 14 : 0,
+                    minHeight: 46,
+                    paddingHorizontal: wide && !rail ? 14 : 0,
                     borderRadius: 10,
                     backgroundColor:
                       wide && selected ? t.elevated : "transparent",
                   }}
                 >
-                  <Icon
-                    name={item.icon}
-                    size={wide ? 22 : 25}
-                    color={selected ? t.accent : t.muted}
-                  />
-                  <Text
+                  <View
                     style={{
-                      fontSize: wide ? 14 : 10,
-                      fontWeight: selected ? "600" : "400",
-                      color: selected ? t.accent : t.muted,
-                      lineHeight: wide ? 23 : 16,
+                      minWidth: wide ? 24 : 44,
+                      height: wide ? 28 : 25,
+                      borderRadius: 12,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor:
+                        !wide && selected
+                          ? blend(t.accent, t.background, 0.16)
+                          : "transparent",
                     }}
                   >
-                    {item.name}
-                  </Text>
+                    <Icon
+                      name={item.icon}
+                      size={wide ? 22 : 20}
+                      color={selected ? t.accent : t.muted}
+                    />
+                  </View>
+                  {!rail ? (
+                    <Text
+                      style={{
+                        fontSize: wide ? 14 : 10,
+                        fontWeight: selected ? "600" : "400",
+                        color: selected ? t.accent : t.muted,
+                        lineHeight: wide ? 23 : 16,
+                      }}
+                    >
+                      {item.name}
+                    </Text>
+                  ) : null}
                 </Pressable>
               </Link>
             );
           })}
         </View>
-        {wide ? (
+        {wide && !rail ? (
           <View
             style={{
               flex: 1,
@@ -156,9 +191,6 @@ export function AppShell() {
                   : "Saved on this device"}
               </Text>
             </View>
-            <Text muted style={{ fontSize: 11 }}>
-              A little structure. A clearer day.
-            </Text>
           </View>
         ) : null}
       </SafeAreaView>

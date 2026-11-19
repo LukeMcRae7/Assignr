@@ -95,7 +95,9 @@ function RootNavigator() {
     );
   return (
     <WorkspaceGuard>
-      <StatusBar style={t.dark ? "light" : "dark"} />
+      <StatusBar
+        style={t.dark || path.startsWith("/courses/") ? "light" : "dark"}
+      />
       <Stack
         screenOptions={{
           headerShown: false,

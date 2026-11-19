@@ -51,7 +51,6 @@ export function CoursesScreen() {
       title="Courses"
       actions={
         <>
-          <SemesterSelector compact />
           {courses.length > 1 ? (
             <IconButton
               icon={organizing ? "check" : "sort-variant"}
@@ -60,6 +59,7 @@ export function CoursesScreen() {
               onPress={() => setOrganizing(!organizing)}
             />
           ) : null}
+          <SemesterSelector compact />
         </>
       }
       floating={
@@ -91,14 +91,12 @@ export function CoursesScreen() {
         <EmptyState
           icon="school-outline"
           title={
-            allCourses.length
-              ? "No courses in this semester"
-              : "Make room for a great term"
+            allCourses.length ? "No courses in this semester" : "Your courses"
           }
           description={
             allCourses.length
               ? "Add a course here, or switch semesters to see your other courses."
-              : "Start with a course. Add its weekly classes and keep every deadline connected."
+              : undefined
           }
           action={
             <Button icon="plus" onPress={() => setEditing(true)}>

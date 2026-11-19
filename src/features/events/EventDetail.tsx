@@ -3,7 +3,7 @@ import { Pressable, View } from "react-native";
 import { router } from "expo-router";
 import { format, parseISO } from "date-fns";
 import { displayDate, displayTime } from "../../domain/dates";
-import { kindLabels, subtaskDate } from "../../domain/eventEditor";
+import { typeLabel, subtaskDate } from "../../domain/eventEditor";
 import {
   occurrencesOnDate,
   subtaskProgress,
@@ -113,6 +113,11 @@ export function EventDetail({
       />
     );
   const point = event.starts_at || event.due_at;
+  const spansDays =
+    point &&
+    event.ends_at &&
+    displayDate(point, p.timezone, "yyyy-MM-dd") !==
+      displayDate(event.ends_at, p.timezone, "yyyy-MM-dd");
   return (
     <>
       <Sheet
@@ -151,10 +156,12 @@ export function EventDetail({
             <Text style={{ fontSize: 14, fontWeight: "500" }}>
               {course?.name || "Personal"}
             </Text>
-            <Text muted style={{ fontSize: 12, textTransform: "capitalize" }}>
-              {kindLabels[event.kind]}
-              {event.parent_event_id ? " · Replaces a class" : ""}
-            </Text>
+            {event.parent_event_id || event.title !== typeLabel(event) ? (
+              <Text muted style={{ fontSize: 12 }}>
+                {typeLabel(event)}
+                {event.parent_event_id ? " · Replaces a class" : ""}
+              </Text>
+            ) : null}
           </View>
         </View>
         <View style={{ gap: 12 }}>
@@ -179,7 +186,17 @@ export function EventDetail({
             <>
               <DetailRow
                 icon="calendar-blank-outline"
-                text={displayDate(point, p.timezone, "EEE, MMM d, yyyy")}
+                text={
+                  spansDays
+                    ? displayDate(point, p.timezone, "EEE, MMM d") +
+                      " – " +
+                      displayDate(
+                        event.ends_at!,
+                        p.timezone,
+                        "EEE, MMM d, yyyy",
+                      )
+                    : displayDate(point, p.timezone, "EEE, MMM d, yyyy")
+                }
               />
               <DetailRow
                 icon="clock-outline"

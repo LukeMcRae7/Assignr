@@ -30,13 +30,20 @@ export function weeklyScheduleLabel(
     new Date(zonedISO(first, "00:00", rule.timezone)),
     new Date(zonedISO(addDateDays(first, 7), "00:00", rule.timezone)),
   );
+  const daysByTime = new Map<string, string[]>();
+  for (const item of instances) {
+    const range =
+      displayTime(item.starts_at!, zone, hour24) +
+      "–" +
+      displayTime(item.ends_at!, zone, hour24);
+    const days = daysByTime.get(range) || [];
+    days.push(displayDate(item.starts_at!, zone, "EEE"));
+    daysByTime.set(range, days);
+  }
   return (
-    instances
-      .map(
-        (o) =>
-          `${displayDate(o.starts_at!, zone, "EEE")} ${displayTime(o.starts_at!, zone, hour24)}–${displayTime(o.ends_at!, zone, hour24)}`,
-      )
-      .join(" · ") || "No meetings within teaching dates"
+    [...daysByTime]
+      .map(([range, days]) => days.join(", ") + " " + range)
+      .join(" / ") || "No meetings within teaching dates"
   );
 }
 

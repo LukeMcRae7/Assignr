@@ -66,6 +66,35 @@ export function resolveSemesterEvents(
   });
 }
 
+export function groupAssignmentsBySemester(
+  assignments: StudyEvent[],
+  courses: Course[],
+  semesters: Semester[],
+  currentId?: string,
+) {
+  const courseTerms = new Map(
+    courses.map((course) => [course.id, course.semester_id]),
+  );
+  const terms = new Map(semesters.map((semester) => [semester.id, semester]));
+  const primary: StudyEvent[] = [];
+  const others = new Map<
+    string,
+    { semester: Semester; assignments: StudyEvent[] }
+  >();
+  for (const event of assignments) {
+    const termId = event.course_id ? courseTerms.get(event.course_id) : null;
+    const semester = termId ? terms.get(termId) : null;
+    if (!semester || semester.id === currentId) {
+      primary.push(event);
+      continue;
+    }
+    const group = others.get(semester.id) || { semester, assignments: [] };
+    group.assignments.push(event);
+    others.set(semester.id, group);
+  }
+  return { primary, others: [...others.values()] };
+}
+
 export function exceptionsOutsideSemester(
   semester: Semester,
   courses: Course[],

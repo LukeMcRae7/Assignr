@@ -6,6 +6,7 @@ export default function NewEventRoute() {
   const params = useLocalSearchParams<{
     kind?: string;
     courseId?: string;
+    semesterId?: string;
     date?: string;
     parentId?: string;
     originalDate?: string;

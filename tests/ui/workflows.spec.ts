@@ -24,7 +24,7 @@ test("course, classes, assignment, and in-class exam stay consistent", async ({
     page.getByText("Data Structures", { exact: true }),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "Manage classes", exact: true })
+    .getByRole("button", { name: "Add weekly class", exact: true })
     .click();
   await page.getByLabel("Starts at", { exact: true }).fill("09:30");
   await page.getByLabel("Ends at", { exact: true }).fill("10:30");
@@ -32,7 +32,7 @@ test("course, classes, assignment, and in-class exam stay consistent", async ({
   await page
     .getByRole("button", { name: "Create lecture", exact: true })
     .click();
-  await expect(page.getByText("Weekly classes", { exact: true })).toBeVisible();
+  await expect(page.getByText("Class schedule", { exact: true })).toBeVisible();
   await page
     .getByRole("button", { name: "Add assignment", exact: true })
     .click();
